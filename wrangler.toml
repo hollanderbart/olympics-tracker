@@ -1,6 +1,2 @@
-name = "dutch-olympic-tracker"
-compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
-
-[vars]
-OLYMPICS_BASE_URL = "https://olympics.com"
+name = "olympics-tracker"
+pages_build_output_dir = "./out"
