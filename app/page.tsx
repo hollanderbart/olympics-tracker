@@ -8,6 +8,8 @@ import NextEventHighlight from "@/components/NextEventHighlight";
 import EventList from "@/components/EventList";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent, NOC_FLAGS } from "@/lib/types";
+import { fetchMedalTally, getDutchEvents } from "@/lib/olympics";
+import { NED_NOC } from "@/lib/constants";
 
 // Fallback data (used before API responds or if API is unreachable)
 const FALLBACK_TALLY: CountryMedals[] = [
@@ -26,7 +28,7 @@ const FALLBACK_TALLY: CountryMedals[] = [
 ];
 
 const FALLBACK_NED: CountryMedals = {
-  noc: "NED", name: "Netherlands", flag: "🇳🇱", rank: 0,
+  noc: NED_NOC, name: "Netherlands", flag: "🇳🇱", rank: 0,
   medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
 };
 
@@ -37,55 +39,43 @@ export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
   const [completedEvents, setCompletedEvents] = useState(5);
 
-  // Fetch medal data
+  // Fetch medal data directly from Olympics API
   const fetchMedals = useCallback(async () => {
     try {
-      const res = await fetch("/api/medals");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.medals?.length > 0) {
-          setMedals(data.medals);
-        }
-        if (data.nedMedals) {
-          setNedMedals(data.nedMedals);
-        }
+      const data = await fetchMedalTally();
+      if (data.medals?.length > 0) {
+        setMedals(data.medals);
+      }
+      if (data.nedMedals) {
+        setNedMedals(data.nedMedals);
       }
     } catch (e) {
       console.warn("Failed to fetch medals:", e);
     }
   }, []);
 
-  // Fetch schedule data
-  const fetchSchedule = useCallback(async () => {
-    try {
-      const res = await fetch("/api/schedule");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.events?.length > 0) {
-          setEvents(data.events);
-          setCompletedEvents(
-            data.events.filter((e: DutchEvent) => e.status === "completed").length
-          );
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to fetch schedule:", e);
-    }
+  // Update schedule with computed event statuses
+  const updateSchedule = useCallback(() => {
+    const dutchEvents = getDutchEvents();
+    setEvents(dutchEvents);
+    setCompletedEvents(
+      dutchEvents.filter((e) => e.status === "completed").length
+    );
   }, []);
 
   useEffect(() => {
     fetchMedals();
-    fetchSchedule();
+    updateSchedule();
 
     // Refresh medals every 60s, schedule every 30s
     const medalInterval = setInterval(fetchMedals, 60_000);
-    const scheduleInterval = setInterval(fetchSchedule, 30_000);
+    const scheduleInterval = setInterval(updateSchedule, 30_000);
 
     return () => {
       clearInterval(medalInterval);
       clearInterval(scheduleInterval);
     };
-  }, [fetchMedals, fetchSchedule]);
+  }, [fetchMedals, updateSchedule]);
 
   // Find next upcoming or live event
   const nextEvent =

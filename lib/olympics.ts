@@ -26,7 +26,6 @@ export async function fetchMedalTally(): Promise<{
   try {
     // Attempt 1: Try the JSON endpoint
     const res = await fetch(OLYMPICS_MEDALS_URL, {
-      next: { revalidate: REVALIDATE_INTERVAL },
       headers: {
         "User-Agent": "DutchOlympicTracker/1.0",
         Accept: "application/json",
@@ -49,7 +48,6 @@ export async function fetchMedalTally(): Promise<{
   try {
     // Attempt 2: Try fetching and parsing the HTML medals page
     const res = await fetch(OLYMPICS_MEDALS_PAGE, {
-      next: { revalidate: REVALIDATE_INTERVAL },
       headers: {
         "User-Agent": "DutchOlympicTracker/1.0",
         Accept: "text/html",
