@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Outfit:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap");
+
+:root {
+  --oranje: #ff6600;
+  --oranje-glow: rgba(255, 102, 0, 0.15);
+  --gold: #ffd700;
+  --silver: #c0c0c0;
+  --bronze: #cd7f32;
+  --bg-dark: #0a0a12;
+  --bg-card: rgba(255, 255, 255, 0.02);
+  --border: rgba(255, 255, 255, 0.06);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(170deg, #0a0a12 0%, #0f111a 40%, #12100a 100%);
+  color: var(--text-primary);
+  font-family: "DM Sans", "Helvetica Neue", system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 102, 0, 0.3);
+  border-radius: 3px;
+}
+
+/* Animations */
+@keyframes pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer-bar {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out both;
+}
+
+.animate-slide-up-1 {
+  animation: slide-up 0.5s ease-out 0.1s both;
+}
+
+.animate-slide-up-2 {
+  animation: slide-up 0.5s ease-out 0.2s both;
+}
+
+.animate-slide-up-3 {
+  animation: slide-up 0.5s ease-out 0.3s both;
+}
+
+.animate-pulse-live {
+  animation: pulse-live 1.5s ease-in-out infinite;
+}
+
+.shimmer-top {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 102, 0, 0.4),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer-bar 3s linear infinite;
+}
+
+/* Interactive hover states */
+.event-row {
+  transition: background 0.15s ease;
+}
+.event-row:hover {
+  background: rgba(255, 102, 0, 0.06);
+}
+.event-row.is-live {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 45, 45, 0.1),
+    rgba(255, 100, 0, 0.06)
+  );
+  border-left: 3px solid #ff2d2d;
+}
+.event-row.is-live:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 45, 45, 0.15),
+    rgba(255, 100, 0, 0.1)
+  );
+}
+.event-row.is-next {
+  background: rgba(255, 102, 0, 0.04);
+  border-left: 3px solid var(--oranje);
+}
+.event-row.is-completed {
+  opacity: 0.4;
+}
+
+/* Medal rings */
+.medal-ring {
+  transition: transform 0.2s ease;
+}
+.medal-ring:hover {
+  transform: scale(1.1);
+}
+
+/* Filter buttons */
+.filter-btn {
+  transition: all 0.15s ease;
+}
+.filter-btn:hover {
+  background: rgba(255, 102, 0, 0.12);
+  color: var(--oranje);
+}
+.filter-btn.active {
+  background: rgba(255, 102, 0, 0.2);
+  color: var(--oranje);
+}
+
+/* Tally row hover */
+.tally-row {
+  transition: background 0.12s ease;
+}
+.tally-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.tally-row.is-ned {
+  background: rgba(255, 102, 0, 0.08);
+  border-left: 3px solid var(--oranje);
+}
+.tally-row.is-ned:hover {
+  background: rgba(255, 102, 0, 0.14);
+}
