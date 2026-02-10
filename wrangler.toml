@@ -1,6 +1,6 @@
-name = "dutch-olympic-tracker"
+name = "olympics-tracker"
 compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
 
 [vars]
 OLYMPICS_BASE_URL = "https://olympics.com"
