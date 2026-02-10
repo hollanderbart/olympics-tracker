@@ -11,7 +11,9 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate from @cloudflare/next-on-pages to OpenNext adapter\n\n- Remove deprecated @cloudflare/next-on-pages package\n- Install @opennextjs/cloudflare adapter\n- Update Next.js to 15.0.8 for compatibility\n- Add open-next.config.ts configuration\n- Update build scripts to use OpenNext\n- Remove edge runtime declarations \\(using Node.js runtime\\)\n- Update wrangler.toml for OpenNext deployment\n\nThis fixes the \"No such module node:stream\" error by using the\nofficially supported OpenNext Cloudflare adapter.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push)",
       "Bash(git commit:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git rebase:*)",
+      "Bash(git push:*)"
     ]
   }
 }

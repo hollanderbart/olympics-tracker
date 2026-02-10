@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import MedalOverview from "@/components/MedalOverview";
 import MedalTally from "@/components/MedalTally";
 import NextEventHighlight from "@/components/NextEventHighlight";
 import EventList from "@/components/EventList";
 import Footer from "@/components/Footer";
-import { CountryMedals, DutchEvent, NOC_FLAGS } from "@/lib/types";
+import { CountryMedals, DutchEvent } from "@/lib/types";
 import { fetchMedalTally, getDutchEvents } from "@/lib/olympics";
 import { NED_NOC } from "@/lib/constants";
 
@@ -33,55 +34,44 @@ const FALLBACK_NED: CountryMedals = {
 };
 
 export default function HomePage() {
-  const [medals, setMedals] = useState<CountryMedals[]>(FALLBACK_TALLY);
-  const [nedMedals, setNedMedals] = useState<CountryMedals>(FALLBACK_NED);
-  const [events, setEvents] = useState<DutchEvent[]>([]);
   const [showTally, setShowTally] = useState(false);
-  const [completedEvents, setCompletedEvents] = useState(5);
 
-  // Fetch medal data directly from Olympics API
-  const fetchMedals = useCallback(async () => {
-    try {
-      const data = await fetchMedalTally();
-      if (data.medals?.length > 0) {
-        setMedals(data.medals);
-      }
-      if (data.nedMedals) {
-        setNedMedals(data.nedMedals);
-      }
-    } catch (e) {
-      console.warn("Failed to fetch medals:", e);
-    }
-  }, []);
+  // Fetch medal data with TanStack Query
+  const { data: medalData } = useQuery({
+    queryKey: ["medals"],
+    queryFn: fetchMedalTally,
+    refetchInterval: 60_000, // Refetch every 60 seconds
+    placeholderData: {
+      medals: FALLBACK_TALLY,
+      nedMedals: FALLBACK_NED,
+      lastUpdated: new Date().toISOString(),
+    },
+  });
 
-  // Update schedule with computed event statuses
-  const updateSchedule = useCallback(() => {
-    const dutchEvents = getDutchEvents();
-    setEvents(dutchEvents);
-    setCompletedEvents(
-      dutchEvents.filter((e) => e.status === "completed").length
-    );
-  }, []);
+  // Fetch schedule data with TanStack Query
+  const { data: events = [] } = useQuery({
+    queryKey: ["events"],
+    queryFn: getDutchEvents,
+    refetchInterval: 30_000, // Refetch every 30 seconds
+    placeholderData: [],
+  });
 
-  useEffect(() => {
-    fetchMedals();
-    updateSchedule();
-
-    // Refresh medals every 60s, schedule every 30s
-    const medalInterval = setInterval(fetchMedals, 60_000);
-    const scheduleInterval = setInterval(updateSchedule, 30_000);
-
-    return () => {
-      clearInterval(medalInterval);
-      clearInterval(scheduleInterval);
-    };
-  }, [fetchMedals, updateSchedule]);
+  // Compute derived data
+  const medals = medalData?.medals || FALLBACK_TALLY;
+  const nedMedals = medalData?.nedMedals || FALLBACK_NED;
+  const completedEvents = useMemo(
+    () => events.filter((e) => e.status === "completed").length,
+    [events]
+  );
 
   // Find next upcoming or live event
-  const nextEvent =
-    events.find((e) => e.status === "live") ||
-    events.find((e) => e.status === "upcoming") ||
-    null;
+  const nextEvent = useMemo(
+    () =>
+      events.find((e) => e.status === "live") ||
+      events.find((e) => e.status === "upcoming") ||
+      null,
+    [events]
+  );
 
   return (
     <div className="relative overflow-hidden min-h-screen">
