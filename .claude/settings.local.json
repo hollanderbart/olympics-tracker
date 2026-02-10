@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git rm --cached .env)",
-      "Bash(git add .gitignore)"
+      "Bash(git add .gitignore)",
+      "Bash(npm run pages:build)"
     ]
   }
 }
