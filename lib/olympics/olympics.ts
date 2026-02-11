@@ -4,8 +4,8 @@ import {
   NED_NOC,
   DUTCH_EVENTS,
   REVALIDATE_INTERVAL,
-} from "./constants";
-import { CountryMedals, DutchEvent, NOC_FLAGS } from "./types";
+} from "../constants";
+import { CountryMedals, DutchEvent, NOC_FLAGS } from "../types";
 
 /**
  * Fetches medal tally data from olympics.com

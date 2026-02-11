@@ -1,4 +1,4 @@
-import { fetchMedalTally, getDutchEvents } from '@/lib/olympics'
+import { fetchMedalTally, getDutchEvents } from './olympics'
 
 describe('Olympics Data Fetching', () => {
   describe('fetchMedalTally', () => {

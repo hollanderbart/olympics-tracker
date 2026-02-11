@@ -1,6 +1,6 @@
 import 'whatwg-fetch'
 import '@testing-library/jest-dom'
-import { setupFetchMock, teardownFetchMock } from './__tests__/mocks/mockFetch'
+import { setupFetchMock, teardownFetchMock } from './tests/setup/mocks/mockFetch'
 
 // Setup fetch mock before all tests
 beforeAll(() => {

@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { render } from '../utils/test-utils'
-import HomePage from '@/app/page'
+import { render } from '@/tests/setup/test-utils'
+import HomePage from '../page'
 
 describe('HomePage Integration Tests', () => {
   it('should render the header with correct title', () => {

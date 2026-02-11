@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
-import { render } from '../utils/test-utils'
-import MedalTally from '@/components/MedalTally'
+import { render } from '@/tests/setup/test-utils'
+import MedalTally from './MedalTally'
 import { CountryMedals } from '@/lib/types'
 
 describe('MedalTally Component', () => {

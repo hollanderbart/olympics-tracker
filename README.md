@@ -18,10 +18,12 @@ A live tracker for Netherlands' performance at the 2026 Winter Olympics. Shows m
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 15 (App Router) |
 | Styling | Tailwind CSS |
-| Data | olympics.com JSON endpoints |
-| Deployment | Cloudflare Pages |
+| Data Fetching | TanStack Query (React Query) |
+| Data Source | olympics.com API (client-side) |
+| Deployment | Cloudflare Pages (static export) |
+| Testing | Jest + React Testing Library |
 | Language | TypeScript |
 
 ## Getting Started
@@ -40,7 +42,10 @@ npm install
 ### Development
 
 ```bash
-npm run dev
+npm run dev         # Start dev server
+npm test            # Run tests
+npm run test:watch  # Run tests in watch mode
+npm run typecheck   # Type check
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -48,53 +53,49 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Build
 
 ```bash
-npm run build
+npm run build       # Build static export to /out
 ```
 
 ## Deploy to Cloudflare Pages
 
-### Option 1: Via Wrangler CLI
+### Via Wrangler CLI
 
 ```bash
-# Install wrangler if needed
-npm install -g wrangler
+# Build the static export
+npm run build
 
-# Login to Cloudflare
-wrangler login
-
-# Build and deploy
-npm run deploy
+# Deploy to Cloudflare Pages
+wrangler pages deploy out
 ```
 
-### Option 2: Via Cloudflare Dashboard
+### Via Cloudflare Dashboard
 
 1. Push this project to a GitHub repository
 2. Go to [Cloudflare Pages](https://pages.cloudflare.com/)
 3. Click **Create a project** → **Connect to Git**
 4. Select your repository
 5. Configure build settings:
-   - **Build command**: `npx @cloudflare/next-on-pages`
-   - **Build output directory**: `.vercel/output/static`
-   - **Node.js version**: `18`
+   - **Build command**: `npm run build`
+   - **Build output directory**: `out`
+   - **Node.js version**: `18` or higher
 6. Deploy!
-
-### Option 3: Static Export (simplest)
-
-If you don't need server-side rendering:
-
-1. Uncomment `output: 'export'` in `next.config.js`
-2. Run `npm run build`
-3. Upload the `out/` folder to Cloudflare Pages
 
 ## Data Sources
 
-The app attempts to fetch live data from olympics.com's JSON endpoints (same format used for Paris 2024). The endpoint pattern is:
+The app fetches live data directly from olympics.com's JSON endpoints (same format used for Paris 2024). The endpoint pattern is:
 
 ```
 https://olympics.com/OG2026/data/CIS_MedalNOCs~lang=ENG~comp=OG2026.json
 ```
 
-If the live endpoint is unavailable, it falls back to parsing the HTML medals page, and finally to embedded static data.
+**Data fetching strategy:**
+1. Attempt JSON endpoint (primary)
+2. Fall back to HTML parsing if JSON fails
+3. Use embedded fallback data if all else fails
+
+**Auto-refresh:**
+- Medal data: Every 60 seconds (via TanStack Query)
+- Event schedule: Every 30 seconds (client-side computed)
 
 The Dutch event schedule is maintained in `lib/constants.ts` based on the official Milano Cortina 2026 schedule.
 
@@ -102,26 +103,56 @@ The Dutch event schedule is maintained in `lib/constants.ts` based on the offici
 
 ```
 ├── app/
-│   ├── layout.tsx              # Root layout with metadata
-│   ├── page.tsx                # Main page (client-side orchestration)
-│   ├── globals.css             # Tailwind + custom styles
-│   └── api/
-│       ├── medals/route.ts     # Medal tally API (proxies olympics.com)
-│       └── schedule/route.ts   # Dutch schedule API
+│   ├── page/
+│   │   ├── page.tsx            # Main page component
+│   │   └── page.test.tsx       # Page integration tests
+│   ├── layout.tsx              # Root layout with QueryProvider
+│   └── globals.css             # Tailwind + custom styles
 ├── components/
+│   ├── MedalOverview/
+│   │   ├── MedalOverview.tsx   # Medal rings component
+│   │   ├── MedalOverview.test.tsx
+│   │   └── index.ts
+│   ├── MedalTally/
+│   │   ├── MedalTally.tsx      # Expandable medal table
+│   │   ├── MedalTally.test.tsx
+│   │   └── index.ts
+│   ├── QueryProvider.tsx       # TanStack Query provider
 │   ├── Header.tsx              # 🇳🇱 branding header
-│   ├── MedalOverview.tsx       # Medal rings (G/S/B/Total)
-│   ├── MedalTally.tsx          # Expandable country medal table
-│   ├── NextEventHighlight.tsx  # Countdown to next Dutch event
-│   ├── EventList.tsx           # Full schedule with filters
+│   ├── NextEventHighlight.tsx  # Countdown to next event
+│   ├── EventList.tsx           # Full schedule
 │   ├── Footer.tsx              # Credits
-│   └── utils.ts                # Date formatting, countdown logic
+│   └── utils.ts                # Date formatting, countdown
 ├── lib/
-│   ├── olympics.ts             # Data fetching + parsing
+│   ├── olympics/
+│   │   ├── olympics.ts         # Data fetching + parsing
+│   │   ├── olympics.test.ts
+│   │   └── index.ts
 │   ├── types.ts                # TypeScript interfaces
-│   └── constants.ts            # Dutch schedule, config, NOC codes
+│   └── constants.ts            # Schedule, config, NOC codes
+├── tests/
+│   └── setup/
+│       ├── test-utils.tsx      # Custom render with QueryClient
+│       └── mocks/              # API mocks for testing
 └── ...config files
 ```
+
+## Testing
+
+Tests are colocated with their code for better maintainability:
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Run in watch mode
+npm run test:coverage # With coverage report
+```
+
+**Test locations:**
+- `components/ComponentName/ComponentName.test.tsx`
+- `app/page/page.test.tsx`
+- `lib/olympics/olympics.test.ts`
+
+All tests use Jest + React Testing Library with custom TanStack Query wrappers.
 
 ## License
 

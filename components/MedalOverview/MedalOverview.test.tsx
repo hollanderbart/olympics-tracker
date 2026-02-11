@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { render } from '../utils/test-utils'
-import MedalOverview from '@/components/MedalOverview'
+import { render } from '@/tests/setup/test-utils'
+import MedalOverview from './MedalOverview'
 import { CountryMedals } from '@/lib/types'
 
 describe('MedalOverview Component', () => {
