@@ -25,38 +25,50 @@ export async function fetchMedalTally(): Promise<{
 
   try {
     // Attempt 1: Try the JSON endpoint
+    console.log("Fetching medals from:", OLYMPICS_MEDALS_URL);
     const res = await fetch(OLYMPICS_MEDALS_URL, {
       headers: {
         "User-Agent": "DutchOlympicTracker/1.0",
         Accept: "application/json",
       },
+      cache: "no-cache",
     });
+
+    console.log("Response status:", res.status);
 
     if (res.ok) {
       const data = await res.json();
+      console.log("Received data structure:", Object.keys(data));
       const parsed = parseOlympicsJSON(data);
+      console.log("Parsed medals count:", parsed.length);
       if (parsed.length > 0) {
         const nedMedals =
           parsed.find((m) => m.noc === NED_NOC) || createEmptyNED();
         return { medals: parsed, nedMedals, lastUpdated: now };
       }
+    } else {
+      console.warn("API returned status:", res.status);
     }
   } catch (e) {
-    console.warn("JSON endpoint failed, trying fallback:", e);
+    console.error("JSON endpoint failed:", e);
   }
 
   try {
     // Attempt 2: Try fetching and parsing the HTML medals page
+    console.log("Trying HTML fallback from:", OLYMPICS_MEDALS_PAGE);
     const res = await fetch(OLYMPICS_MEDALS_PAGE, {
       headers: {
-        "User-Agent": "DutchOlympicTracker/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Accept: "text/html",
       },
+      cache: "no-cache",
     });
 
     if (res.ok) {
       const html = await res.text();
+      console.log("HTML page fetched, length:", html.length);
       const parsed = parseMedalsHTML(html);
+      console.log("Parsed from HTML, medals count:", parsed.length);
       if (parsed.length > 0) {
         const nedMedals =
           parsed.find((m) => m.noc === NED_NOC) || createEmptyNED();
@@ -64,7 +76,7 @@ export async function fetchMedalTally(): Promise<{
       }
     }
   } catch (e) {
-    console.warn("HTML fallback failed:", e);
+    console.error("HTML fallback failed:", e);
   }
 
   // Return empty data with error
