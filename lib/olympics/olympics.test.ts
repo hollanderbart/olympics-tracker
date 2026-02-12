@@ -1,6 +1,31 @@
 import { fetchMedalTally, getDutchEvents } from './olympics'
 
 describe('Olympics Data Fetching', () => {
+  const makeResponse = ({
+    ok = true,
+    text = '',
+    json,
+  }: {
+    ok?: boolean
+    text?: string
+    json?: unknown
+  }) =>
+    ({
+      ok,
+      text: async () => text,
+      json: async () => (json ?? JSON.parse(text || '{}')),
+    }) as Response
+
+  const htmlWithMedalsTable = (payload: unknown) => `
+    <html>
+      <body>
+        <script type="application/json">
+          ${JSON.stringify(payload)}
+        </script>
+      </body>
+    </html>
+  `
+
   describe('fetchMedalTally', () => {
     it('should fetch and parse medal data from JSON endpoint', async () => {
       const result = await fetchMedalTally()
@@ -127,6 +152,100 @@ describe('Olympics Data Fetching', () => {
       const usa = result.medals.find((m) => m.noc === 'USA')
       expect(usa?.flag).toBe('🇺🇸')
     })
+
+    it('should use medals page parse when it succeeds', async () => {
+      const pagePayload = {
+        medalStandings: {
+          medalsTable: [
+            {
+              organisation: 'NED',
+              description: 'Netherlands',
+              rank: 1,
+              medalsNumber: [{ type: 'Total', gold: 4, silver: 0, bronze: 0, total: 4 }],
+            },
+          ],
+        },
+      }
+
+      global.fetch = jest.fn((url: string | URL | Request) => {
+        const value = url.toString()
+        if (value.includes('/milano-cortina-2026/medals')) {
+          return Promise.resolve(makeResponse({ text: htmlWithMedalsTable(pagePayload) }))
+        }
+        return Promise.resolve(makeResponse({ ok: false }))
+      }) as jest.Mock
+
+      const result = await fetchMedalTally()
+      expect(result.nedMedals?.medals.gold).toBe(4)
+      expect(result.error).toBeUndefined()
+    })
+
+    it('should fallback to JSON endpoint when page parsing fails', async () => {
+      const jsonPayload = {
+        medalStandings: {
+          medalsTable: [
+            {
+              organisation: 'NED',
+              description: 'Netherlands',
+              rank: 2,
+              medalsNumber: [{ type: 'Total', gold: 2, silver: 1, bronze: 0, total: 3 }],
+            },
+          ],
+        },
+      }
+
+      global.fetch = jest.fn((url: string | URL | Request) => {
+        const value = url.toString()
+        if (value.includes('/milano-cortina-2026/medals')) {
+          return Promise.resolve(makeResponse({ ok: false }))
+        }
+        if (value.includes('CIS_MedalNOCs')) {
+          return Promise.resolve(makeResponse({ text: JSON.stringify(jsonPayload) }))
+        }
+        return Promise.resolve(makeResponse({ ok: false }))
+      }) as jest.Mock
+
+      const result = await fetchMedalTally()
+      expect(result.nedMedals?.medals).toEqual({ gold: 2, silver: 1, bronze: 0, total: 3 })
+      expect(result.error).toBeUndefined()
+    })
+
+    it('should fallback to Wikipedia parse when page and JSON fail', async () => {
+      const wikiHtml = `
+        <table>
+          <tr><td>1</td><td>Norway</td><td>3</td><td>0</td><td>0</td><td>3</td></tr>
+          <tr><td>2</td><td>Netherlands</td><td>1</td><td>2</td><td>0</td><td>3</td></tr>
+        </table>
+      `
+
+      global.fetch = jest.fn((url: string | URL | Request) => {
+        const value = url.toString()
+        if (value.includes('/milano-cortina-2026/medals')) {
+          return Promise.resolve(makeResponse({ ok: false }))
+        }
+        if (value.includes('CIS_MedalNOCs')) {
+          return Promise.resolve(makeResponse({ ok: false }))
+        }
+        if (value.includes('wikipedia.org/wiki/2026_Winter_Olympics_medal_table')) {
+          return Promise.resolve(makeResponse({ text: wikiHtml }))
+        }
+        return Promise.resolve(makeResponse({ ok: false }))
+      }) as jest.Mock
+
+      const result = await fetchMedalTally()
+      expect(result.nedMedals?.noc).toBe('NED')
+      expect(result.nedMedals?.medals.total).toBe(3)
+      expect(result.error).toBeUndefined()
+    })
+
+    it('should return empty fallback when all sources fail', async () => {
+      global.fetch = jest.fn(() => Promise.resolve(makeResponse({ ok: false }))) as jest.Mock
+
+      const result = await fetchMedalTally()
+      expect(result.medals).toEqual([])
+      expect(result.nedMedals?.medals).toEqual({ gold: 0, silver: 0, bronze: 0, total: 0 })
+      expect(result.error).toBeDefined()
+    })
   })
 
   describe('getDutchEvents', () => {
@@ -196,6 +315,20 @@ describe('Olympics Data Fetching', () => {
       const events = await getDutchEvents()
       expect(events.length).toBeGreaterThan(0)
       expect(events[0].source).toBe('fallback')
+    })
+
+    it('should compute deterministic live/completed status with fixed clock', async () => {
+      jest.useFakeTimers()
+      jest.setSystemTime(new Date('2026-02-21T19:00:00+01:00'))
+
+      const events = await getDutchEvents()
+      const knownCompleted = events.find((e) => e.id === 'ssk-w3000')
+      const knownLive = events.find((e) => e.id === 'ssk-mms')
+
+      expect(knownCompleted?.status).toBe('completed')
+      expect(knownLive?.status).toBe('live')
+
+      jest.useRealTimers()
     })
   })
 })

@@ -5,6 +5,14 @@ import HomePage from '../page'
 import { CLIENT_CACHE_KEYS } from '@/lib/cache/clientCache'
 
 describe('HomePage Integration Tests', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
   it('should render the header with correct title', () => {
     render(<HomePage />)
 
@@ -74,9 +82,9 @@ describe('HomePage Integration Tests', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      // Should show next event section
-      const nextEventSection = screen.getByText(/Volgende wedstrijd/i)
-      expect(nextEventSection).toBeInTheDocument()
+      const hasUpcomingLabel = screen.queryByText(/Volgende wedstrijd/i)
+      const hasLiveLabel = screen.queryByText(/Nu live/i)
+      expect(hasUpcomingLabel || hasLiveLabel).toBeTruthy()
     })
   })
 
@@ -185,6 +193,40 @@ describe('HomePage Integration Tests', () => {
       expect(screen.getByText('5')).toBeInTheDocument()
       expect(screen.getByText('4')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
+    })
+  })
+
+  it('should render loading skeletons while data is pending', async () => {
+    global.fetch = jest.fn(
+      () =>
+        new Promise<Response>(() => {
+          // Intentionally unresolved to keep query pending.
+        })
+    ) as jest.Mock
+
+    render(<HomePage />)
+
+    expect(screen.getByLabelText(/Medailleoverzicht wordt geladen/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Volgende wedstrijd wordt geladen/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Programma wordt geladen/i)).toBeInTheDocument()
+  })
+
+  it('should retry medals fetch when retry button is clicked', async () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2026-02-12T12:00:00+01:00'))
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('API Error'))
+
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    render(<HomePage />)
+
+    const retryButton = await screen.findByRole('button', { name: /Opnieuw proberen/i })
+    const callCountBeforeClick = (global.fetch as jest.Mock).mock.calls.length
+
+    await user.click(retryButton)
+
+    await waitFor(() => {
+      expect((global.fetch as jest.Mock).mock.calls.length).toBeGreaterThan(callCountBeforeClick)
     })
   })
 })

@@ -3,10 +3,7 @@ import { mockMedalData } from "./handlers"
 
 // Simple fetch mock that doesn't require MSW
 export function setupFetchMock() {
-  const jestGlobal = globalThis as typeof globalThis & {
-    jest: { fn: <T extends (...args: any[]) => any>(fn: T) => T };
-  };
-  const mockFetch = jestGlobal.jest.fn((url: string | URL | Request) => {
+  const mockFetch = jest.fn((url: string | URL | Request) => {
     const urlString = url.toString()
 
     if (urlString.includes(OLYMPICS_MEDALS_URL)) {
@@ -54,5 +51,6 @@ export function setupFetchMock() {
 }
 
 export function teardownFetchMock() {
-  ;(global.fetch as unknown as { mockClear: () => void }).mockClear();
+  const maybeMock = global.fetch as unknown as { mockClear?: () => void } | undefined;
+  maybeMock?.mockClear?.();
 }
