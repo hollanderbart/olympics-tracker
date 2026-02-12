@@ -462,6 +462,56 @@ function parseWikipediaMedalsHTML(html: string): CountryMedals[] {
  * Get Dutch events with real-time status computed
  */
 export function getDutchEvents(): DutchEvent[] {
+  return buildDutchEvents();
+}
+
+export function getDutchEventsWithChances(
+  chancesByDisciplin: Record<string, { label: string; score: number }> = {}
+): DutchEvent[] {
+  const events = buildDutchEvents();
+  return events.map((event) => ({
+    ...event,
+    medalChance:
+      chancesByDisciplin[mapEventIdToDisciplinId(event.id)] ||
+      ({ label: "Onbekend", score: 0 } as const),
+  }));
+}
+
+function mapEventIdToDisciplinId(eventId: string): string {
+  const map: Record<string, string> = {
+    "ssk-w3000": "speedskating-3000m-women",
+    "ssk-m5000": "speedskating-5000m-men",
+    "ssk-w1000": "speedskating-1000m-women",
+    "ssk-m1500": "speedskating-1500m-men",
+    "ssk-w1500": "speedskating-1500m-women",
+    "ssk-m1000": "speedskating-1000m-men",
+    "ssk-w500": "speedskating-500m-women",
+    "ssk-m500": "speedskating-500m-men",
+    "ssk-wtp": "speedskating-team-pursuit-women",
+    "ssk-mtp": "speedskating-team-pursuit-men",
+    "ssk-w5000": "speedskating-5000m-women",
+    "ssk-m10000": "speedskating-10000m-men",
+    "ssk-wms": "speedskating-mass-start-women",
+    "ssk-mms": "speedskating-mass-start-men",
+    "stk-mixed": "short-track-mixed-team-relay",
+    "stk-w500": "short-track-500m-women",
+    "stk-m1000": "short-track-1000m-men",
+    "stk-w1000": "short-track-1000m-women",
+    "stk-m1500": "short-track-1500m-men",
+    "stk-w1500": "short-track-1500m-women",
+    "stk-m500": "short-track-500m-men",
+    "stk-w3000relay": "short-track-relay-women",
+    "stk-m5000relay": "short-track-relay-men",
+    "bob-2man": "bobsled-2-men",
+    "bob-4man": "bobsled-4-men",
+    "skl-women": "skeleton-women",
+    "fsk-pairs": "figure-skating-pair",
+  };
+
+  return map[eventId] || eventId;
+}
+
+function buildDutchEvents(): DutchEvent[] {
   const now = new Date();
 
   return DUTCH_EVENTS.map((event) => {

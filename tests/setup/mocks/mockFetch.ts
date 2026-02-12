@@ -1,9 +1,12 @@
-import { OLYMPICS_MEDALS_URL, OLYMPICS_MEDALS_PAGE } from '@/lib/constants'
-import { mockMedalData } from './handlers'
+import { OLYMPICS_MEDALS_URL, OLYMPICS_MEDALS_PAGE } from "../../../lib/constants"
+import { mockMedalData } from "./handlers"
 
 // Simple fetch mock that doesn't require MSW
 export function setupFetchMock() {
-  global.fetch = jest.fn((url: string | URL | Request) => {
+  const jestGlobal = globalThis as typeof globalThis & {
+    jest: { fn: <T extends (...args: any[]) => any>(fn: T) => T };
+  };
+  const mockFetch = jestGlobal.jest.fn((url: string | URL | Request) => {
     const urlString = url.toString()
 
     if (urlString.includes(OLYMPICS_MEDALS_URL)) {
@@ -37,10 +40,19 @@ export function setupFetchMock() {
       } as Response)
     }
 
-    return Promise.reject(new Error('Unhandled fetch: ' + urlString))
-  }) as jest.Mock
+    if (urlString.includes("/api/medal-chances")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+    }
+
+    return Promise.reject(new Error("Unhandled fetch: " + urlString))
+  });
+
+  global.fetch = mockFetch as unknown as typeof global.fetch;
 }
 
 export function teardownFetchMock() {
-  ;(global.fetch as jest.Mock).mockClear()
+  ;(global.fetch as unknown as { mockClear: () => void }).mockClear();
 }

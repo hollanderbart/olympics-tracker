@@ -9,7 +9,7 @@ import NextEventHighlight from "@/components/NextEventHighlight";
 import EventList from "@/components/EventList";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent } from "@/lib/types";
-import { fetchMedalTally, getDutchEvents } from "@/lib/olympics";
+import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
 import { NED_NOC } from "@/lib/constants";
 
 // Empty fallback for Netherlands when no data available
@@ -31,7 +31,51 @@ export default function HomePage() {
   // Fetch schedule data with TanStack Query
   const { data: events = [] } = useQuery({
     queryKey: ["events"],
-    queryFn: getDutchEvents,
+    queryFn: async () => {
+      const res = await fetch("/api/medal-chances", { cache: "no-cache" });
+      if (!res.ok) {
+        return getDutchEventsWithChances();
+      }
+
+      const data = await res.json();
+      const items = Array.isArray(data?.data) ? data.data : [];
+      const chancesByDisciplin = items.reduce(
+        (acc: Record<string, { label: string; score: number }>, item: any) => {
+          const rawLabel = String(item?.chance || "").trim();
+          if (!rawLabel) {
+            return acc;
+          }
+
+          const mapped =
+            rawLabel === "Big Favourite"
+              ? { label: "Hoge kans op goud", score: 5 }
+            : rawLabel === "Favourite"
+              ? { label: "Redelijke kans op zilver", score: 4 }
+            : rawLabel === "Challenger"
+              ? { label: "Mogelijke kans op brons", score: 3 }
+            : rawLabel === "Outsider"
+              ? { label: "Kleine kans", score: 2 }
+            : rawLabel === "Wildcard"
+              ? { label: "Zeer kleine kans", score: 1 }
+              : null;
+
+          if (!mapped) {
+            return acc;
+          }
+
+          const key = String(item?.disciplinId || "");
+          if (!key) {
+            return acc;
+          }
+
+          if (!acc[key] || mapped.score > acc[key].score) {
+            acc[key] = mapped;
+          }
+          return acc;
+        }, {})
+
+      return getDutchEventsWithChances(chancesByDisciplin);
+    },
     refetchInterval: 30_000, // Refetch every 30 seconds
   });
 
@@ -40,15 +84,15 @@ export default function HomePage() {
   const medals = medalData?.medals || [];
   const nedMedals = medalData?.nedMedals || FALLBACK_NED;
   const completedEvents = useMemo(
-    () => events.filter((e) => e.status === "completed").length,
+    () => events.filter((e: DutchEvent) => e.status === "completed").length,
     [events]
   );
 
   // Find next upcoming or live event
   const nextEvent = useMemo(
     () =>
-      events.find((e) => e.status === "live") ||
-      events.find((e) => e.status === "upcoming") ||
+      events.find((e: DutchEvent) => e.status === "live") ||
+      events.find((e: DutchEvent) => e.status === "upcoming") ||
       null,
     [events]
   );

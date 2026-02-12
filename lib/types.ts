@@ -14,6 +14,11 @@ export interface CountryMedals {
   medals: MedalCount;
 }
 
+export interface MedalChance {
+  label: string;
+  score: number;
+}
+
 // Event/schedule types
 export interface DutchEvent {
   id: string;
@@ -26,6 +31,7 @@ export interface DutchEvent {
   athletes: string[];
   status: "upcoming" | "live" | "completed";
   result?: string;
+  medalChance?: MedalChance;
 }
 
 // Olympics.com API response types (based on Paris 2024 format)

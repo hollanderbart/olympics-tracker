@@ -22,6 +22,19 @@ export default function NextEventHighlight({
   if (!event) return null;
 
   const isLive = event.status === "live";
+  const chanceScore = event.medalChance?.score;
+  const chanceStyle =
+    chanceScore === 5
+      ? "bg-[#f7d46b]/10 text-[#f7d46b] border-[#f7d46b]/30"
+      : chanceScore === 4
+      ? "bg-[#cfd6df]/10 text-[#cfd6df] border-[#cfd6df]/30"
+      : chanceScore === 3
+      ? "bg-[#d4a373]/10 text-[#d4a373] border-[#d4a373]/30"
+      : chanceScore === 2
+      ? "bg-white/[0.04] text-white/55 border-white/[0.08]"
+      : chanceScore === 1
+      ? "bg-white/[0.02] text-white/40 border-white/[0.06]"
+      : "bg-white/[0.06] text-white/70 border-white/[0.08]";
 
   return (
     <section className="animate-slide-up-2 max-w-[720px] mx-auto mt-5 px-6">
@@ -59,7 +72,7 @@ export default function NextEventHighlight({
             )
           )}
         </div>
-        <div className="mt-2.5 flex items-center gap-2.5">
+        <div className="mt-2.5 flex items-center gap-2.5 flex-wrap">
           <span className="text-2xl">{event.sportIcon}</span>
           <div>
             <div className="text-base font-bold">{event.event}</div>
@@ -67,6 +80,14 @@ export default function NextEventHighlight({
               {formatDate(event.date)} · {event.time} CET · {event.venue}
             </div>
           </div>
+          {event.medalChance && (
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-md border ${chanceStyle}`}
+              title={`Medaillekans: ${event.medalChance.label}`}
+            >
+              {event.medalChance.label}
+            </span>
+          )}
         </div>
         <div className="flex gap-1.5 mt-2.5 flex-wrap">
           {event.athletes.map((a, i) => (

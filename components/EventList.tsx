@@ -42,6 +42,19 @@ function EventRow({
 
   const isLive = event.status === "live";
   const isCompleted = event.status === "completed";
+  const chanceScore = event.medalChance?.score;
+  const chanceStyle =
+    chanceScore === 5
+      ? "bg-[#f7d46b]/10 text-[#f7d46b] border-[#f7d46b]/30"
+      : chanceScore === 4
+      ? "bg-[#cfd6df]/10 text-[#cfd6df] border-[#cfd6df]/30"
+      : chanceScore === 3
+      ? "bg-[#d4a373]/10 text-[#d4a373] border-[#d4a373]/30"
+      : chanceScore === 2
+      ? "bg-white/[0.04] text-white/55 border-white/[0.08]"
+      : chanceScore === 1
+      ? "bg-white/[0.02] text-white/40 border-white/[0.06]"
+      : "bg-white/[0.06] text-white/70 border-white/[0.08]";
 
   let rowClass = "event-row";
   if (isLive) rowClass += " is-live";
@@ -78,6 +91,14 @@ function EventRow({
           <span className="text-[13px] text-white/50 font-semibold tabular-nums">
             {event.time} CET
           </span>
+          {event.medalChance && (
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-md border ${chanceStyle}`}
+              title={`Medaillekans: ${event.medalChance.label}`}
+            >
+              {event.medalChance.label}
+            </span>
+          )}
           {!isCompleted && countdown && (
             <span
               className={`text-xs font-bold px-2.5 py-1 rounded-md tabular-nums min-w-[80px] text-center ${
