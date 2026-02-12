@@ -2,6 +2,7 @@
 
 import confetti from "canvas-confetti";
 import { CountryMedals } from "@/lib/types";
+import { shouldReduceMotion } from "@/lib/ui/motion";
 
 let dutchStripeShape: any | null = null;
 
@@ -49,38 +50,34 @@ function MedalRing({
   const s = styles[type];
   const label = type === "gold" ? "Goud" : type === "silver" ? "Zilver" : "Brons";
   const canCelebrate = type === "gold" && Boolean(onCelebrate);
+  const ring = (
+    <div
+      className="medal-ring w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-extrabold cursor-default"
+      style={{
+        background: s.bg,
+        boxShadow: s.shadow,
+        color: s.text,
+        fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif",
+      }}
+    >
+      {count}
+    </div>
+  );
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div
-        className="medal-ring-wrapper"
-        onClick={canCelebrate ? onCelebrate : undefined}
-        onKeyDown={
-          canCelebrate
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onCelebrate?.();
-                }
-              }
-            : undefined
-        }
-        role={canCelebrate ? "button" : undefined}
-        tabIndex={canCelebrate ? 0 : undefined}
-        aria-label={canCelebrate ? "Vier gouden medaille" : undefined}
-      >
-        <div
-          className="medal-ring w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-extrabold cursor-default"
-          style={{
-            background: s.bg,
-            boxShadow: s.shadow,
-            color: s.text,
-            fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif",
-          }}
+      {canCelebrate ? (
+        <button
+          type="button"
+          className="medal-ring-button medal-ring-wrapper"
+          onClick={onCelebrate}
+          aria-label="Vier gouden medaille"
         >
-          {count}
-        </div>
-      </div>
+          {ring}
+        </button>
+      ) : (
+        <div className="medal-ring-wrapper">{ring}</div>
+      )}
       <span className="text-xs font-semibold text-white/50 uppercase tracking-[1.5px]">
         {label}
       </span>
@@ -100,6 +97,8 @@ export default function MedalOverview({
   const total = nedMedals.medals.gold + nedMedals.medals.silver + nedMedals.medals.bronze;
 
   function triggerConfetti() {
+    if (shouldReduceMotion()) return;
+
     const shape = getDutchStripeShape();
     const dutchColors = ["#FF2A3D", "#FFFFFF", "#3B7BFF"];
     const burstCount = 10;

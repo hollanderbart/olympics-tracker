@@ -151,6 +151,14 @@ body {
 .medal-ring-wrapper[role="button"] {
   cursor: pointer;
 }
+.medal-ring-button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.medal-ring-button:focus-visible .medal-ring,
 .medal-ring-wrapper[role="button"]:focus-visible .medal-ring {
   outline: 2px solid rgba(255, 215, 0, 0.9);
   outline-offset: 3px;
@@ -182,4 +190,18 @@ body {
 }
 .tally-row.is-ned:hover {
   background: rgba(255, 102, 0, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

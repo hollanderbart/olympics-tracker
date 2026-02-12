@@ -188,4 +188,36 @@ describe('MedalOverview Component', () => {
 
     expect(confetti).toHaveBeenCalled()
   })
+
+  it('should not show confetti when reduced motion is enabled', async () => {
+    const user = userEvent.setup()
+    const mockToggle = jest.fn()
+    const originalMatchMedia = window.matchMedia
+    ;(confetti as jest.Mock).mockClear()
+
+    window.matchMedia = jest.fn().mockImplementation((query) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }))
+
+    render(
+      <MedalOverview
+        nedMedals={mockNedMedalsWithData}
+        onToggleTally={mockToggle}
+        showTally={false}
+      />
+    )
+
+    const goldButton = screen.getByRole('button', { name: /Vier gouden medaille/i })
+    await user.click(goldButton)
+
+    expect(confetti).not.toHaveBeenCalled()
+    window.matchMedia = originalMatchMedia
+  })
 })

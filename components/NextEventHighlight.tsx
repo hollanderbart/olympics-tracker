@@ -51,6 +51,8 @@ export default function NextEventHighlight({
       >
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span
+            role="status"
+            aria-live={isLive ? "assertive" : "polite"}
             className={`text-[11px] font-bold uppercase tracking-[2px] ${
               isLive ? "text-red-400 animate-pulse-live" : "text-white/35"
             }`}
