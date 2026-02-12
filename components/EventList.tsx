@@ -137,7 +137,7 @@ export default function EventList({
   events: DutchEvent[];
   nextEventId: string | null;
 }) {
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("upcoming");
 
   const sports = [...new Set(events.map((e) => e.sport))];
 

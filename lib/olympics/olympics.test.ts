@@ -130,16 +130,16 @@ describe('Olympics Data Fetching', () => {
   })
 
   describe('getDutchEvents', () => {
-    it('should return list of Dutch events', () => {
-      const events = getDutchEvents()
+    it('should return list of Dutch events', async () => {
+      const events = await getDutchEvents()
 
       expect(events).toBeDefined()
       expect(Array.isArray(events)).toBe(true)
       expect(events.length).toBeGreaterThan(0)
     })
 
-    it('should include event status', () => {
-      const events = getDutchEvents()
+    it('should include event status', async () => {
+      const events = await getDutchEvents()
 
       events.forEach((event) => {
         expect(event.status).toBeDefined()
@@ -147,8 +147,8 @@ describe('Olympics Data Fetching', () => {
       })
     })
 
-    it('should include event details', () => {
-      const events = getDutchEvents()
+    it('should include event details', async () => {
+      const events = await getDutchEvents()
 
       const firstEvent = events[0]
       expect(firstEvent.id).toBeDefined()
@@ -161,35 +161,41 @@ describe('Olympics Data Fetching', () => {
       expect(Array.isArray(firstEvent.athletes)).toBe(true)
     })
 
-    it('should include speed skating events', () => {
-      const events = getDutchEvents()
+    it('should include speed skating events', async () => {
+      const events = await getDutchEvents()
 
       const speedSkatingEvents = events.filter((e) => e.sport === 'Speed Skating')
       expect(speedSkatingEvents.length).toBeGreaterThan(0)
     })
 
-    it('should include short track events', () => {
-      const events = getDutchEvents()
+    it('should include short track events', async () => {
+      const events = await getDutchEvents()
 
       const shortTrackEvents = events.filter((e) => e.sport === 'Short Track')
       expect(shortTrackEvents.length).toBeGreaterThan(0)
     })
 
-    it('should compute event status based on date/time', () => {
-      const events = getDutchEvents()
+    it('should compute event status based on date/time', async () => {
+      const events = await getDutchEvents()
 
       // All events in 2026 should be upcoming (since we're testing in 2024/2025)
       const upcomingEvents = events.filter((e) => e.status === 'upcoming')
       expect(upcomingEvents.length).toBeGreaterThan(0)
     })
 
-    it('should include athlete names', () => {
-      const events = getDutchEvents()
+    it('should include athlete names', async () => {
+      const events = await getDutchEvents()
 
       const eventWithAthletes = events.find((e) => e.athletes.length > 0)
       expect(eventWithAthletes).toBeDefined()
       expect(eventWithAthletes?.athletes[0]).toBeTruthy()
       expect(typeof eventWithAthletes?.athletes[0]).toBe('string')
+    })
+
+    it('should mark events source as fallback', async () => {
+      const events = await getDutchEvents()
+      expect(events.length).toBeGreaterThan(0)
+      expect(events[0].source).toBe('fallback')
     })
   })
 })

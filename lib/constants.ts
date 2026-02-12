@@ -182,7 +182,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-mixed",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Mixed Team Relay",
     date: "2026-02-08",
     time: "18:00",
@@ -197,7 +197,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-w500",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Vrouwen 500m",
     date: "2026-02-12",
     time: "18:30",
@@ -207,7 +207,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-m1000",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Mannen 1000m",
     date: "2026-02-13",
     time: "18:30",
@@ -217,7 +217,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-w1000",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Vrouwen 1000m",
     date: "2026-02-15",
     time: "18:30",
@@ -227,7 +227,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-m1500",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Mannen 1500m",
     date: "2026-02-16",
     time: "18:30",
@@ -237,7 +237,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-w1500",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Vrouwen 1500m",
     date: "2026-02-19",
     time: "18:30",
@@ -247,7 +247,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-m500",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Mannen 500m",
     date: "2026-02-20",
     time: "18:30",
@@ -257,7 +257,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-w3000relay",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Vrouwen 3000m Relay",
     date: "2026-02-21",
     time: "18:30",
@@ -267,7 +267,7 @@ export const DUTCH_EVENTS = [
   {
     id: "stk-m5000relay",
     sport: "Short Track",
-    sportIcon: "🏒",
+    sportIcon: "⛸️",
     event: "Mannen 5000m Relay",
     date: "2026-02-22",
     time: "18:30",

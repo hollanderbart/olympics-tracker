@@ -10,7 +10,12 @@ import EventList from "@/components/EventList";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent } from "@/lib/types";
 import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
-import { NED_NOC } from "@/lib/constants";
+import { DUTCH_EVENTS, NED_NOC } from "@/lib/constants";
+import {
+  CLIENT_CACHE_KEYS,
+  loadClientCache,
+  saveClientCache,
+} from "@/lib/cache/clientCache";
 
 // Empty fallback for Netherlands when no data available
 const FALLBACK_NED: CountryMedals = {
@@ -18,64 +23,158 @@ const FALLBACK_NED: CountryMedals = {
   medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
 };
 
+type MedalData = Awaited<ReturnType<typeof fetchMedalTally>> & {
+  servedFromCache: boolean;
+  cacheSavedAt?: string;
+  cacheAgeSeconds?: number;
+};
+
+type EventsData = {
+  events: DutchEvent[];
+  servedFromCache: boolean;
+  cacheSavedAt?: string;
+  cacheAgeSeconds?: number;
+  error?: string;
+  lastUpdated: string;
+};
+
+async function fetchMedalTallyWithCache(): Promise<MedalData> {
+  const live = await fetchMedalTally();
+  if (!live.error) {
+    saveClientCache(CLIENT_CACHE_KEYS.medals, live, "live");
+    return { ...live, servedFromCache: false };
+  }
+
+  const cached = loadClientCache<Awaited<ReturnType<typeof fetchMedalTally>>>(
+    CLIENT_CACHE_KEYS.medals
+  );
+  if (cached) {
+    return {
+      ...cached.data,
+      servedFromCache: true,
+      cacheSavedAt: cached.savedAt,
+      cacheAgeSeconds: cached.cacheAgeSeconds,
+      error: live.error,
+    };
+  }
+
+  return { ...live, servedFromCache: false };
+}
+
+async function fetchEventsWithCache(): Promise<EventsData> {
+  const constantsFallback = DUTCH_EVENTS.map((event) => {
+    const now = new Date();
+    const eventStart = new Date(`${event.date}T${event.time}:00+01:00`);
+    const eventEnd = new Date(eventStart.getTime() + 3 * 60 * 60 * 1000);
+
+    let status: DutchEvent["status"] = "upcoming";
+    if (now >= eventEnd) status = "completed";
+    else if (now >= eventStart && now < eventEnd) status = "live";
+
+    return { ...event, status };
+  });
+
+  try {
+    const res = await fetch("/api/medal-chances", { cache: "no-cache" });
+    let liveEvents: DutchEvent[];
+
+    if (!res.ok) {
+      liveEvents = await getDutchEventsWithChances();
+    } else {
+      const data = await res.json();
+      const items = Array.isArray(data?.data) ? data.data : [];
+      const chancesByDisciplin = items.reduce(
+        (
+          acc: Record<string, { label: string; score: number }>,
+          item: {
+            chance?: string;
+            disciplinId?: string;
+          }
+        ) => {
+          const rawLabel = String(item?.chance || "").trim();
+          if (!rawLabel) return acc;
+
+          const mapped =
+            rawLabel === "Big Favourite"
+              ? { label: "Hoge kans op goud", score: 5 }
+              : rawLabel === "Favourite"
+                ? { label: "Redelijke kans op zilver", score: 4 }
+                : rawLabel === "Challenger"
+                  ? { label: "Mogelijke kans op brons", score: 3 }
+                  : rawLabel === "Outsider"
+                    ? { label: "Kleine kans", score: 2 }
+                    : rawLabel === "Wildcard"
+                      ? { label: "Zeer kleine kans", score: 1 }
+                      : null;
+
+          if (!mapped) return acc;
+
+          const key = String(item?.disciplinId || "");
+          if (!key) return acc;
+
+          if (!acc[key] || mapped.score > acc[key].score) {
+            acc[key] = mapped;
+          }
+
+          return acc;
+        },
+        {}
+      );
+
+      liveEvents = await getDutchEventsWithChances(chancesByDisciplin);
+    }
+
+    if (liveEvents.length === 0) {
+      return {
+        events: constantsFallback,
+        servedFromCache: false,
+        error: "Live event data unavailable, fallback schedule shown.",
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+
+    const payload: EventsData = {
+      events: liveEvents,
+      servedFromCache: false,
+      lastUpdated: new Date().toISOString(),
+    };
+    saveClientCache(CLIENT_CACHE_KEYS.events, payload, "live");
+    return payload;
+  } catch {
+    const cached = loadClientCache<EventsData>(CLIENT_CACHE_KEYS.events);
+    if (cached && Array.isArray(cached.data.events) && cached.data.events.length > 0) {
+      return {
+        ...cached.data,
+        servedFromCache: true,
+        cacheSavedAt: cached.savedAt,
+        cacheAgeSeconds: cached.cacheAgeSeconds,
+        error: "Live event data unavailable, cached data shown.",
+      };
+    }
+
+    return {
+      events: constantsFallback,
+      servedFromCache: false,
+      error: "Could not load event data, fallback schedule shown.",
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+}
+
 export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
 
   // Fetch medal data with TanStack Query
   const { data: medalData } = useQuery({
     queryKey: ["medals"],
-    queryFn: fetchMedalTally,
+    queryFn: fetchMedalTallyWithCache,
     refetchInterval: 60_000, // Refetch every 60 seconds
   });
 
   // Fetch schedule data with TanStack Query
-  const { data: events = [] } = useQuery({
+  const { data: eventsData } = useQuery({
     queryKey: ["events"],
-    queryFn: async () => {
-      const res = await fetch("/api/medal-chances", { cache: "no-cache" });
-      if (!res.ok) {
-        return getDutchEventsWithChances();
-      }
-
-      const data = await res.json();
-      const items = Array.isArray(data?.data) ? data.data : [];
-      const chancesByDisciplin = items.reduce(
-        (acc: Record<string, { label: string; score: number }>, item: any) => {
-          const rawLabel = String(item?.chance || "").trim();
-          if (!rawLabel) {
-            return acc;
-          }
-
-          const mapped =
-            rawLabel === "Big Favourite"
-              ? { label: "Hoge kans op goud", score: 5 }
-            : rawLabel === "Favourite"
-              ? { label: "Redelijke kans op zilver", score: 4 }
-            : rawLabel === "Challenger"
-              ? { label: "Mogelijke kans op brons", score: 3 }
-            : rawLabel === "Outsider"
-              ? { label: "Kleine kans", score: 2 }
-            : rawLabel === "Wildcard"
-              ? { label: "Zeer kleine kans", score: 1 }
-              : null;
-
-          if (!mapped) {
-            return acc;
-          }
-
-          const key = String(item?.disciplinId || "");
-          if (!key) {
-            return acc;
-          }
-
-          if (!acc[key] || mapped.score > acc[key].score) {
-            acc[key] = mapped;
-          }
-          return acc;
-        }, {})
-
-      return getDutchEventsWithChances(chancesByDisciplin);
-    },
+    queryFn: fetchEventsWithCache,
     refetchInterval: 30_000, // Refetch every 30 seconds
   });
 
@@ -83,6 +182,9 @@ export default function HomePage() {
   const hasError = medalData?.error;
   const medals = medalData?.medals || [];
   const nedMedals = medalData?.nedMedals || FALLBACK_NED;
+  const events = eventsData?.events || [];
+  const isOfflineMode = Boolean(medalData?.servedFromCache || eventsData?.servedFromCache);
+  const lastUpdated = medalData?.cacheSavedAt || eventsData?.cacheSavedAt || medalData?.lastUpdated;
   const completedEvents = useMemo(
     () => events.filter((e: DutchEvent) => e.status === "completed").length,
     [events]
@@ -119,7 +221,22 @@ export default function HomePage() {
 
       <Header completedEvents={completedEvents} />
 
-      {hasError && (
+      {isOfflineMode && lastUpdated && (
+        <section className="max-w-[720px] mx-auto mt-4 px-6">
+          <div
+            className="rounded-xl p-3 text-xs"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.7)",
+            }}
+          >
+            Offline modus · Laatst bijgewerkt: {new Date(lastUpdated).toLocaleString("nl-NL")}
+          </div>
+        </section>
+      )}
+
+      {hasError && !isOfflineMode && (
         <section className="max-w-[720px] mx-auto mt-6 px-6">
           <div
             className="rounded-xl p-6 text-center"

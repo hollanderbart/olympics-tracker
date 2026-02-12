@@ -461,14 +461,14 @@ function parseWikipediaMedalsHTML(html: string): CountryMedals[] {
 /**
  * Get Dutch events with real-time status computed
  */
-export function getDutchEvents(): DutchEvent[] {
+export async function getDutchEvents(): Promise<DutchEvent[]> {
   return buildDutchEvents();
 }
 
-export function getDutchEventsWithChances(
+export async function getDutchEventsWithChances(
   chancesByDisciplin: Record<string, { label: string; score: number }> = {}
-): DutchEvent[] {
-  const events = buildDutchEvents();
+): Promise<DutchEvent[]> {
+  const events = await getDutchEvents();
   return events.map((event) => ({
     ...event,
     medalChance:
@@ -510,11 +510,11 @@ function mapEventIdToDisciplinId(eventId: string): string {
 
   return map[eventId] || eventId;
 }
-
 function buildDutchEvents(): DutchEvent[] {
+  const source = DUTCH_EVENTS.map((e) => ({ ...e, source: "fallback" as const }));
   const now = new Date();
 
-  return DUTCH_EVENTS.map((event) => {
+  return source.map((event) => {
     const eventStart = new Date(`${event.date}T${event.time}:00+01:00`); // CET
     const eventEnd = new Date(eventStart.getTime() + 3 * 60 * 60 * 1000); // Assume ~3 hour window
 

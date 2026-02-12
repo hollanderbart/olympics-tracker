@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '@/tests/setup/test-utils'
 import HomePage from '../page'
+import { CLIENT_CACHE_KEYS } from '@/lib/cache/clientCache'
 
 describe('HomePage Integration Tests', () => {
   it('should render the header with correct title', () => {
@@ -142,6 +143,48 @@ describe('HomePage Integration Tests', () => {
       // Verify all main sections are present
       expect(screen.getByText(/Nederland/i)).toBeInTheDocument() // Header
       expect(screen.getByText(/Goud/i)).toBeInTheDocument() // Medal Overview
+    })
+  })
+
+  it('should show offline banner and cached medal data when API fails', async () => {
+    localStorage.setItem(
+      CLIENT_CACHE_KEYS.medals,
+      JSON.stringify({
+        data: {
+          medals: [
+            {
+              noc: 'NED',
+              name: 'Netherlands',
+              flag: '🇳🇱',
+              rank: 1,
+              medals: { gold: 5, silver: 4, bronze: 3, total: 12 },
+            },
+          ],
+          nedMedals: {
+            noc: 'NED',
+            name: 'Netherlands',
+            flag: '🇳🇱',
+            rank: 1,
+            medals: { gold: 5, silver: 4, bronze: 3, total: 12 },
+          },
+          lastUpdated: '2026-02-12T10:00:00.000Z',
+          error: 'Could not fetch medal data. Will retry shortly.',
+        },
+        savedAt: '2026-02-12T10:00:00.000Z',
+        source: 'test',
+        schemaVersion: 1,
+      })
+    )
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('API Error'))
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Offline modus/i)).toBeInTheDocument()
+      expect(screen.getByText('5')).toBeInTheDocument()
+      expect(screen.getByText('4')).toBeInTheDocument()
+      expect(screen.getByText('3')).toBeInTheDocument()
     })
   })
 })

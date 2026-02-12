@@ -32,6 +32,7 @@ export interface DutchEvent {
   status: "upcoming" | "live" | "completed";
   result?: string;
   medalChance?: MedalChance;
+  source?: "live" | "fallback";
 }
 
 // Olympics.com API response types (based on Paris 2024 format)
