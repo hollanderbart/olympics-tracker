@@ -327,25 +327,25 @@ export default function HomePage() {
       return;
     }
 
-    let enabled = notificationsEnabled;
-
-    if (!enabled) {
+    if (Notification.permission !== "granted") {
       const permission = await requestNotificationPermission();
-      enabled = permission === "granted";
-      setNotificationsEnabled(enabled);
-      setNotificationsEnabledState(enabled);
+      if (permission !== "granted") {
+        setTestNotificationFeedback("Meldingen zijn niet toegestaan in deze browser.");
+        return;
+      }
     }
 
-    if (!enabled) {
-      setTestNotificationFeedback("Meldingen zijn niet toegestaan in deze browser.");
-      return;
+    // Keep user preference in sync once permission is granted.
+    if (!notificationsEnabled) {
+      setNotificationsEnabled(true);
+      setNotificationsEnabledState(true);
     }
 
     const sent = sendTestNotification();
     setTestNotificationFeedback(
       sent
         ? "Testmelding verzonden."
-        : "Testmelding kon niet worden verzonden."
+        : "Testmelding kon niet worden verzonden. Controleer browser/OS notificatie-instellingen."
     );
   };
 
@@ -402,11 +402,10 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleSendTestNotification}
-                disabled={!notificationsSupported}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   notificationsSupported
                     ? "bg-white/10 text-white/75 hover:bg-white/15"
-                    : "bg-white/5 text-white/30 cursor-not-allowed"
+                    : "bg-white/5 text-white/40"
                 }`}
               >
                 Stuur testmelding

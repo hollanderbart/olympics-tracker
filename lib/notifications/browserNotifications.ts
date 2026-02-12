@@ -56,18 +56,27 @@ export function sendNotification(
   if (!getNotificationsEnabled()) return false;
   if (isDuplicate(dedupeKey)) return false;
 
-  new Notification(title, options);
-  markSent(dedupeKey);
-  return true;
+  try {
+    new Notification(title, options);
+    markSent(dedupeKey);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function sendTestNotification(): boolean {
   const timestamp = new Date().toLocaleTimeString("nl-NL");
-  return sendNotification(
-    "Team NL testmelding",
-    {
+  if (!supportsNotifications()) return false;
+  if (Notification.permission !== "granted") return false;
+
+  try {
+    // Test notification intentionally bypasses enable/disable and dedupe checks.
+    new Notification("Team NL testmelding", {
       body: `Dit is een testmelding (${timestamp}).`,
-    },
-    `notif_test_${Date.now()}`
-  );
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
