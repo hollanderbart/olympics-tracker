@@ -10,6 +10,7 @@ import NextEventHighlight from "@/components/NextEventHighlight";
 import NextEventHighlightSkeleton from "@/components/NextEventHighlightSkeleton";
 import EventList from "@/components/EventList";
 import EventListSkeleton from "@/components/EventListSkeleton";
+import TodayForNL from "@/components/TodayForNL/TodayForNL";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent } from "@/lib/types";
 import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
@@ -184,6 +185,7 @@ export default function HomePage() {
   const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
   const [notificationsSupported, setNotificationsSupported] = useState(false);
   const [testNotificationFeedback, setTestNotificationFeedback] = useState<string | null>(null);
+  const [latestMedalUpdate, setLatestMedalUpdate] = useState<string | null>(null);
   const previousMedalsRef = useRef<{ gold: number; silver: number; bronze: number } | null>(null);
   const previousStatusesRef = useRef<Record<string, DutchEvent["status"]>>({});
 
@@ -242,11 +244,6 @@ export default function HomePage() {
       bronze: nedMedals.medals.bronze,
     };
 
-    if (!notificationsEnabled) {
-      previousMedalsRef.current = current;
-      return;
-    }
-
     const previous = previousMedalsRef.current;
     if (!previous) {
       previousMedalsRef.current = current;
@@ -258,16 +255,25 @@ export default function HomePage() {
     if (current.silver > previous.silver) medalChanges.push({ type: "zilver", from: previous.silver, to: current.silver });
     if (current.bronze > previous.bronze) medalChanges.push({ type: "brons", from: previous.bronze, to: current.bronze });
 
-    medalChanges.forEach((change) => {
-      const dedupeKey = `notif_medal_${change.type}_${change.to}`;
-      sendNotification(
-        "Team NL medaille-update",
-        {
-          body: `Nederland heeft een extra ${change.type} medaille (${change.from} -> ${change.to}).`,
-        },
-        dedupeKey
-      );
-    });
+    if (medalChanges.length > 0) {
+      const updateText = medalChanges
+        .map((change) => `${change.type} ${change.from}→${change.to}`)
+        .join(", ");
+      setLatestMedalUpdate(`${updateText} (${new Date().toLocaleTimeString("nl-NL")})`);
+    }
+
+    if (notificationsEnabled) {
+      medalChanges.forEach((change) => {
+        const dedupeKey = `notif_medal_${change.type}_${change.to}`;
+        sendNotification(
+          "Team NL medaille-update",
+          {
+            body: `Nederland heeft een extra ${change.type} medaille (${change.from} -> ${change.to}).`,
+          },
+          dedupeKey
+        );
+      });
+    }
 
     previousMedalsRef.current = current;
   }, [notificationsEnabled, nedMedals.medals.bronze, nedMedals.medals.gold, nedMedals.medals.silver]);
@@ -370,6 +376,11 @@ export default function HomePage() {
       />
 
       <Header completedEvents={completedEvents} />
+      <TodayForNL
+        nextEvent={nextEvent}
+        latestMedalUpdate={latestMedalUpdate}
+        lastUpdated={lastUpdated}
+      />
 
       {isOfflineMode && lastUpdated && (
         <section className="max-w-[720px] mx-auto mt-4 px-6">
