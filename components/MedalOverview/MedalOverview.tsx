@@ -49,7 +49,7 @@ function MedalRing({
   };
   const s = styles[type];
   const label = type === "gold" ? "Goud" : type === "silver" ? "Zilver" : "Brons";
-  const canCelebrate = type === "gold" && Boolean(onCelebrate);
+  const canCelebrate = type === "gold" && count > 0 && Boolean(onCelebrate);
   const ring = (
     <div
       className="medal-ring w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-extrabold cursor-default"
@@ -86,15 +86,20 @@ function MedalRing({
 }
 
 export default function MedalOverview({
-  nedMedals,
+  selectedCountryMedals,
+  selectedCountryName,
   onToggleTally,
   showTally,
 }: {
-  nedMedals: CountryMedals;
+  selectedCountryMedals: CountryMedals;
+  selectedCountryName: string;
   onToggleTally: () => void;
   showTally: boolean;
 }) {
-  const total = nedMedals.medals.gold + nedMedals.medals.silver + nedMedals.medals.bronze;
+  const total =
+    selectedCountryMedals.medals.gold +
+    selectedCountryMedals.medals.silver +
+    selectedCountryMedals.medals.bronze;
 
   function triggerConfetti() {
     if (shouldReduceMotion()) return;
@@ -151,11 +156,11 @@ export default function MedalOverview({
           <div className="flex gap-6">
             <MedalRing
               type="gold"
-              count={nedMedals.medals.gold}
+              count={selectedCountryMedals.medals.gold}
               onCelebrate={triggerConfetti}
             />
-            <MedalRing type="silver" count={nedMedals.medals.silver} />
-            <MedalRing type="bronze" count={nedMedals.medals.bronze} />
+            <MedalRing type="silver" count={selectedCountryMedals.medals.silver} />
+            <MedalRing type="bronze" count={selectedCountryMedals.medals.bronze} />
           </div>
           <div className="text-right">
             <div
@@ -185,7 +190,7 @@ export default function MedalOverview({
             }}
           >
             🏁 De schaatsevementen zijn begonnen — De eerste grote kans voor
-            Nederland op medailles! Houd de updates in de gaten.
+            {" "}{selectedCountryName} op medailles! Houd de updates in de gaten.
           </div>
         )}
       </div>

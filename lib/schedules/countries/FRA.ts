@@ -1,0 +1,58 @@
+import { CountrySchedule } from "@/lib/schedules/types";
+
+export const FRA_SCHEDULE: CountrySchedule = {
+  noc: "FRA",
+  name: "France",
+  events: [
+    {
+      id: "fra-bth-w15km",
+      sport: "Biathlon",
+      sportIcon: "🎯",
+      event: "Vrouwen 15km Individual",
+      date: "2026-02-11",
+      time: "14:00",
+      venue: "Anterselva",
+      athletes: ["Julia Simon", "Lou Jeanmonnot"],
+    },
+    {
+      id: "fra-bth-mixed",
+      sport: "Biathlon",
+      sportIcon: "🎯",
+      event: "Mixed Relay 4x6km",
+      date: "2026-02-08",
+      time: "14:30",
+      venue: "Anterselva",
+      athletes: ["France"],
+    },
+    {
+      id: "fra-fsk-icedance",
+      sport: "Figure Skating",
+      sportIcon: "⛸️",
+      event: "Ice Dance",
+      date: "2026-02-11",
+      time: "19:00",
+      venue: "Milano Ice Arena",
+      athletes: ["Fournier Beaudry", "Cizeron"],
+    },
+    {
+      id: "fra-frs-wmoguls",
+      sport: "Freestyle Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen Moguls",
+      date: "2026-02-11",
+      time: "12:30",
+      venue: "Livigno Snow Park",
+      athletes: ["Perrine Laffont"],
+    },
+    {
+      id: "fra-ccs-mskiathlon",
+      sport: "Cross-Country Skiing",
+      sportIcon: "🎿",
+      event: "Mannen Skiathlon",
+      date: "2026-02-08",
+      time: "13:00",
+      venue: "Val di Fiemme",
+      athletes: ["Mathis Desloges"],
+    },
+  ],
+};

@@ -1,5 +1,7 @@
 // Netherlands NOC code
 export const NED_NOC = "NED";
+export const DEFAULT_FAVORITE_COUNTRY_NOC = NED_NOC;
+export const FAVORITE_COUNTRY_STORAGE_KEY = "favorite_country_noc_v1";
 
 // Olympics.com data endpoints (pattern from Paris 2024)
 // The actual URL may need adjustment once we verify the 2026 endpoint format

@@ -52,19 +52,25 @@ function TallyRow({
   );
 }
 
-export default function MedalTally({ medals }: { medals: CountryMedals[] }) {
+export default function MedalTally({
+  medals,
+  highlightedNoc = "NED",
+}: {
+  medals: CountryMedals[];
+  highlightedNoc?: string;
+}) {
   // Sort: gold desc, then silver, then bronze
   const sorted = useMemo(
     () =>
       [...medals]
-        .filter((m) => m.medals.total > 0 || m.noc === "NED")
+        .filter((m) => m.medals.total > 0 || m.noc === highlightedNoc)
         .sort(
           (a, b) =>
             b.medals.gold - a.medals.gold ||
             b.medals.silver - a.medals.silver ||
             b.medals.bronze - a.medals.bronze
         ),
-    [medals]
+    [medals, highlightedNoc]
   );
   const shouldVirtualize = sorted.length > VIRTUALIZATION_THRESHOLD;
 
@@ -73,7 +79,11 @@ export default function MedalTally({ medals }: { medals: CountryMedals[] }) {
     if (!entry) return null;
     return (
       <div style={style}>
-        <TallyRow entry={entry} rank={index + 1} isNED={entry.noc === "NED"} />
+        <TallyRow
+          entry={entry}
+          rank={index + 1}
+          isNED={entry.noc === highlightedNoc}
+        />
       </div>
     );
   };
@@ -110,7 +120,7 @@ export default function MedalTally({ medals }: { medals: CountryMedals[] }) {
               key={entry.noc}
               entry={entry}
               rank={i + 1}
-              isNED={entry.noc === "NED"}
+              isNED={entry.noc === highlightedNoc}
             />
           ))
         )}

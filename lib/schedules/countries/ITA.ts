@@ -1,0 +1,58 @@
+import { CountrySchedule } from "@/lib/schedules/types";
+
+export const ITA_SCHEDULE: CountrySchedule = {
+  noc: "ITA",
+  name: "Italy",
+  events: [
+    {
+      id: "ita-lug-mdoubles",
+      sport: "Luge",
+      sportIcon: "🛷",
+      event: "Mannen Doubles",
+      date: "2026-02-11",
+      time: "11:30",
+      venue: "Cortina Sliding Centre",
+      athletes: ["Emanuel Rieder", "Simon Kainzwaldner"],
+    },
+    {
+      id: "ita-lug-wdoubles",
+      sport: "Luge",
+      sportIcon: "🛷",
+      event: "Vrouwen Doubles",
+      date: "2026-02-11",
+      time: "12:30",
+      venue: "Cortina Sliding Centre",
+      athletes: ["Andrea Voetter", "Marion Oberhofer"],
+    },
+    {
+      id: "ita-ssk-w3000",
+      sport: "Speed Skating",
+      sportIcon: "⛸️",
+      event: "Vrouwen 3000m",
+      date: "2026-02-07",
+      time: "16:00",
+      venue: "Milano Speed Skating Stadium",
+      athletes: ["Francesca Lollobrigida"],
+    },
+    {
+      id: "ita-alp-wsg",
+      sport: "Alpine Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen Super-G",
+      date: "2026-02-12",
+      time: "11:00",
+      venue: "Cortina d'Ampezzo",
+      athletes: ["Federica Brignone"],
+    },
+    {
+      id: "ita-stk-mixed",
+      sport: "Short Track",
+      sportIcon: "⛸️",
+      event: "Mixed Team Relay",
+      date: "2026-02-10",
+      time: "18:00",
+      venue: "Milano Ice Arena",
+      athletes: ["Italy"],
+    },
+  ],
+};

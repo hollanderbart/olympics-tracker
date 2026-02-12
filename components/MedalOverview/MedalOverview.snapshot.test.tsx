@@ -24,7 +24,12 @@ describe("MedalOverview snapshots", () => {
 
   it("should match snapshot with medals", () => {
     const { container } = render(
-      <MedalOverview nedMedals={mockNedMedals} onToggleTally={() => {}} showTally={false} />
+      <MedalOverview
+        selectedCountryMedals={mockNedMedals}
+        selectedCountryName="Netherlands"
+        onToggleTally={() => {}}
+        showTally={false}
+      />
     );
 
     expect(container.firstChild).toMatchSnapshot();
@@ -33,10 +38,11 @@ describe("MedalOverview snapshots", () => {
   it("should match snapshot with zero medals state", () => {
     const { container } = render(
       <MedalOverview
-        nedMedals={{
+        selectedCountryMedals={{
           ...mockNedMedals,
           medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
         }}
+        selectedCountryName="Netherlands"
         onToggleTally={() => {}}
         showTally={false}
       />

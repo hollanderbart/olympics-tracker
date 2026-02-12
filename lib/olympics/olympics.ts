@@ -2,10 +2,10 @@ import {
   OLYMPICS_MEDALS_URL,
   OLYMPICS_MEDALS_PAGE,
   NED_NOC,
-  DUTCH_EVENTS,
 } from "../constants";
 import { CountryMedals, DutchEvent, NOC_FLAGS } from "../types";
 import { logTelemetry } from "../telemetry/logger";
+import { getStaticScheduleByNoc } from "../schedules";
 
 function createLiveMedalsUrl(): string {
   // Add cache-buster so browser/CDN layers do not serve stale medal data.
@@ -248,7 +248,7 @@ export async function fetchMedalTally(): Promise<{
   });
   return {
     medals: [],
-    nedMedals: createEmptyNED(),
+    nedMedals: createEmptyCountry(NED_NOC),
     lastUpdated: now,
     error: "Could not fetch medal data. Will retry shortly.",
   };
@@ -354,6 +354,28 @@ const COUNTRY_NAME_TO_NOC: Record<string, string> = {
   belgium: "BEL",
   bulgaria: "BUL",
   latvia: "LAT",
+};
+
+const COUNTRY_NOC_TO_NAME: Record<string, string> = {
+  NED: "Netherlands",
+  NOR: "Norway",
+  ITA: "Italy",
+  USA: "United States",
+  GER: "Germany",
+  SWE: "Sweden",
+  SUI: "Switzerland",
+  AUT: "Austria",
+  FRA: "France",
+  CAN: "Canada",
+  JPN: "Japan",
+  CHN: "China",
+  KOR: "Republic of Korea",
+  CZE: "Czechia",
+  SLO: "Slovenia",
+  POL: "Poland",
+  BEL: "Belgium",
+  BUL: "Bulgaria",
+  LAT: "Latvia",
 };
 
 function parseMedalsFromText(raw: string): CountryMedals[] {
@@ -557,13 +579,20 @@ function parseWikipediaMedalsHTML(html: string): CountryMedals[] {
  * Get Dutch events with real-time status computed
  */
 export async function getDutchEvents(): Promise<DutchEvent[]> {
-  return buildDutchEvents();
+  return buildEventsForCountry(NED_NOC);
 }
 
 export async function getDutchEventsWithChances(
   chancesByDisciplin: Record<string, { label: string; score: number }> = {}
 ): Promise<DutchEvent[]> {
-  const events = await getDutchEvents();
+  return getEventsWithChancesForCountry(NED_NOC, chancesByDisciplin);
+}
+
+export async function getEventsWithChancesForCountry(
+  noc: string,
+  chancesByDisciplin: Record<string, { label: string; score: number }> = {}
+): Promise<DutchEvent[]> {
+  const events = await buildEventsForCountry(noc);
   return events.map((event) => ({
     ...event,
     medalChance:
@@ -605,8 +634,14 @@ function mapEventIdToDisciplinId(eventId: string): string {
 
   return map[eventId] || eventId;
 }
-function buildDutchEvents(): DutchEvent[] {
-  const source = DUTCH_EVENTS.map((e) => ({ ...e, source: "fallback" as const }));
+
+function buildEventsForCountry(noc: string): DutchEvent[] {
+  const schedule = getStaticScheduleByNoc(noc);
+  if (!schedule) {
+    return [];
+  }
+
+  const source = schedule.events.map((e) => ({ ...e, source: "fallback" as const }));
   const now = new Date();
 
   return source.map((event) => {
@@ -627,28 +662,41 @@ function buildDutchEvents(): DutchEvent[] {
   });
 }
 
-function createEmptyNED(): CountryMedals {
+function createEmptyCountry(noc: string): CountryMedals {
+  const normalizedNoc = String(noc || "").toUpperCase() || NED_NOC;
   return {
-    noc: NED_NOC,
-    name: "Netherlands",
-    flag: "🇳🇱",
+    noc: normalizedNoc,
+    name: COUNTRY_NOC_TO_NAME[normalizedNoc] || normalizedNoc,
+    flag: NOC_FLAGS[normalizedNoc] || "🏳️",
     rank: 0,
     medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
   };
 }
 
-function findNetherlands(medals: CountryMedals[]): CountryMedals {
-  const byCode = medals.find((m) => m.noc === NED_NOC || m.noc === "NLD");
+export function findCountryMedals(medals: CountryMedals[], noc: string): CountryMedals {
+  const normalizedNoc = String(noc || "").toUpperCase() || NED_NOC;
+  const byCode = medals.find(
+    (m) =>
+      m.noc.toUpperCase() === normalizedNoc ||
+      (normalizedNoc === NED_NOC && m.noc.toUpperCase() === "NLD")
+  );
   if (byCode) return byCode;
 
-  const byName = medals.find((m) => m.name.toLowerCase().includes("nether"));
+  const fallbackName = COUNTRY_NOC_TO_NAME[normalizedNoc];
+  const byName = fallbackName
+    ? medals.find((m) => m.name.toLowerCase() === fallbackName.toLowerCase())
+    : null;
   if (byName) {
     return {
       ...byName,
-      noc: NED_NOC,
-      flag: "🇳🇱",
+      noc: normalizedNoc,
+      flag: NOC_FLAGS[normalizedNoc] || byName.flag,
     };
   }
 
-  return createEmptyNED();
+  return createEmptyCountry(normalizedNoc);
+}
+
+function findNetherlands(medals: CountryMedals[]): CountryMedals {
+  return findCountryMedals(medals, NED_NOC);
 }

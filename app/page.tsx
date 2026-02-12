@@ -11,14 +11,28 @@ import NextEventHighlightSkeleton from "@/components/NextEventHighlightSkeleton"
 import EventList from "@/components/EventList";
 import EventListSkeleton from "@/components/EventListSkeleton";
 import Footer from "@/components/Footer";
-import { CountryMedals, DutchEvent } from "@/lib/types";
-import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
-import { MEDAL_CHANCES_API_URL, DUTCH_EVENTS, GAMES_INFO, NED_NOC } from "@/lib/constants";
+import { CountryMedals, DutchEvent, NOC_FLAGS } from "@/lib/types";
+import {
+  fetchMedalTally,
+  findCountryMedals,
+  getEventsWithChancesForCountry,
+} from "@/lib/olympics";
+import {
+  DEFAULT_FAVORITE_COUNTRY_NOC,
+  GAMES_INFO,
+  MEDAL_CHANCES_API_URL,
+  NED_NOC,
+} from "@/lib/constants";
+import { getStaticScheduleByNoc, SCHEDULE_COUNTRIES } from "@/lib/schedules";
 import {
   CLIENT_CACHE_KEYS,
   loadClientCache,
   saveClientCache,
 } from "@/lib/cache/clientCache";
+import {
+  getFavoriteCountryNoc,
+  setFavoriteCountryNoc,
+} from "@/lib/preferences/favoriteCountry";
 import {
   getNotificationsEnabled,
   requestNotificationPermission,
@@ -27,12 +41,6 @@ import {
   setNotificationsEnabled,
   supportsNotifications,
 } from "@/lib/notifications/browserNotifications";
-
-// Empty fallback for Netherlands when no data available
-const FALLBACK_NED: CountryMedals = {
-  noc: NED_NOC, name: "Netherlands", flag: "🇳🇱", rank: 0,
-  medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
-};
 
 type MedalData = Awaited<ReturnType<typeof fetchMedalTally>> & {
   servedFromCache: boolean;
@@ -46,8 +54,173 @@ type EventsData = {
   cacheSavedAt?: string;
   cacheAgeSeconds?: number;
   error?: string;
+  emptyStateMessage?: string;
   lastUpdated: string;
 };
+
+type MedalChancesFeed = {
+  athletes?: Array<Record<string, unknown>>;
+  disciplins?: Array<Record<string, unknown>>;
+  events?: Array<Record<string, unknown>>;
+};
+
+const SPORT_ICON_BY_NAME: Record<string, string> = {
+  "Alpine Skiing": "🎿",
+  Biathlon: "🎯",
+  Bobsleigh: "🛷",
+  "Cross-Country Skiing": "🎿",
+  Curling: "🥌",
+  "Figure Skating": "⛸️",
+  "Freestyle Skiing": "🎿",
+  "Ice Hockey": "🏒",
+  Luge: "🛷",
+  "Nordic Combined": "🎿",
+  Skeleton: "🛷",
+  "Ski Jumping": "🪽",
+  Snowboard: "🏂",
+  "Speed Skating": "⛸️",
+  "Short Track": "⛸️",
+};
+
+function mapChanceLabel(rawLabel: string): { label: string; score: number } {
+  if (rawLabel === "Big Favourite") return { label: "Hoge kans op goud", score: 5 };
+  if (rawLabel === "Favourite") return { label: "Redelijke kans op zilver", score: 4 };
+  if (rawLabel === "Challenger") return { label: "Mogelijke kans op brons", score: 3 };
+  if (rawLabel === "Outsider") return { label: "Kleine kans", score: 2 };
+  if (rawLabel === "Wildcard") return { label: "Zeer kleine kans", score: 1 };
+  return { label: "Onbekend", score: 0 };
+}
+
+function matchesCountryCode(value: unknown, selectedNoc: string): boolean {
+  const normalizedValue = String(value || "").trim().toUpperCase();
+  if (!normalizedValue) return false;
+  const normalizedSelected = selectedNoc.toUpperCase();
+  if (normalizedValue === normalizedSelected) return true;
+  if (normalizedSelected === NED_NOC && normalizedValue === "NLD") return true;
+  return false;
+}
+
+function toOlympicDate(day: unknown): string {
+  const dayNum = Number.parseInt(String(day ?? ""), 10);
+  if (!Number.isFinite(dayNum) || dayNum < 1 || dayNum > 31) {
+    return GAMES_INFO.startDate;
+  }
+  return `2026-02-${String(dayNum).padStart(2, "0")}`;
+}
+
+function normalizeEventTime(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "12:00";
+  const parts = raw.split(":");
+  if (parts.length < 2) return "12:00";
+  return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+}
+
+function computeStatus(date: string, time: string): DutchEvent["status"] {
+  const now = new Date();
+  const eventStart = new Date(`${date}T${time}:00+01:00`);
+  const eventEnd = new Date(eventStart.getTime() + 3 * 60 * 60 * 1000);
+  if (now >= eventEnd) return "completed";
+  if (now >= eventStart && now < eventEnd) return "live";
+  return "upcoming";
+}
+
+function buildDynamicCountryEvents(
+  selectedCountryNoc: string,
+  feed: MedalChancesFeed
+): DutchEvent[] {
+  const athletes = Array.isArray(feed?.athletes) ? feed.athletes : [];
+  const disciplines = Array.isArray(feed?.disciplins) ? feed.disciplins : [];
+  const events = Array.isArray(feed?.events) ? feed.events : [];
+
+  const filteredAthletes = athletes.filter((athlete) =>
+    matchesCountryCode(athlete?.country, selectedCountryNoc)
+  );
+  if (filteredAthletes.length === 0) return [];
+
+  const disciplineMeta = new Map<string, { sport: string; name: string }>();
+  disciplines.forEach((discipline) => {
+    const key = String(discipline?.disciplin_id || "");
+    if (!key) return;
+    disciplineMeta.set(key, {
+      sport: String(discipline?.sport || "Olympic Event"),
+      name: String(discipline?.name || key),
+    });
+  });
+
+  const eventMeta = new Map<string, { day: string; time: string; desc: string }>();
+  events.forEach((event) => {
+    const key = String(event?.disciplin_id || "");
+    if (!key) return;
+    const isMedal = String(event?.is_medal || "") === "1";
+    if (!isMedal) return;
+
+    const day = String(event?.day || "");
+    const time = normalizeEventTime(event?.time_begin);
+    const desc = String(event?.desc || "Final");
+
+    const existing = eventMeta.get(key);
+    if (!existing) {
+      eventMeta.set(key, { day, time, desc });
+      return;
+    }
+
+    const existingSort =
+      Number.parseInt(existing.day || "99", 10) * 10000 +
+      Number.parseInt(existing.time.replace(":", ""), 10);
+    const currentSort =
+      Number.parseInt(day || "99", 10) * 10000 +
+      Number.parseInt(time.replace(":", ""), 10);
+
+    if (currentSort < existingSort) {
+      eventMeta.set(key, { day, time, desc });
+    }
+  });
+
+  const athletesByDiscipline = new Map<string, Array<{ name: string; chance: string }>>();
+  filteredAthletes.forEach((athlete) => {
+    const disciplineId = String(athlete?.disciplin_id || "");
+    if (!disciplineId) return;
+
+    const athleteName = `${String(athlete?.firstname || "").trim()} ${String(
+      athlete?.lastname || ""
+    ).trim()}`.trim();
+    const chance = String(athlete?.chance || "").trim();
+
+    const bucket = athletesByDiscipline.get(disciplineId) || [];
+    bucket.push({ name: athleteName || selectedCountryNoc, chance });
+    athletesByDiscipline.set(disciplineId, bucket);
+  });
+
+  return Array.from(athletesByDiscipline.entries())
+    .map(([disciplineId, disciplineAthletes]) => {
+      const sortedAthletes = [...disciplineAthletes].sort(
+        (a, b) => mapChanceLabel(b.chance).score - mapChanceLabel(a.chance).score
+      );
+      const bestChance = mapChanceLabel(sortedAthletes[0]?.chance || "");
+      const meta = disciplineMeta.get(disciplineId);
+      const schedule = eventMeta.get(disciplineId);
+      const date = toOlympicDate(schedule?.day);
+      const time = schedule?.time || "12:00";
+      const sport = meta?.sport || "Olympic Event";
+      const eventName = meta?.name || schedule?.desc || disciplineId;
+
+      return {
+        id: `${selectedCountryNoc.toLowerCase()}-${disciplineId}`,
+        sport,
+        sportIcon: SPORT_ICON_BY_NAME[sport] || "🏅",
+        event: eventName,
+        date,
+        time,
+        venue: `${sport} Arena`,
+        athletes: sortedAthletes.slice(0, 4).map((a) => a.name),
+        status: computeStatus(date, time),
+        medalChance: bestChance,
+        source: "live" as const,
+      };
+    })
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
 
 async function fetchMedalTallyWithCache(): Promise<MedalData> {
   const live = await fetchMedalTally();
@@ -72,81 +245,28 @@ async function fetchMedalTallyWithCache(): Promise<MedalData> {
   return { ...live, servedFromCache: false };
 }
 
-async function fetchEventsWithCache(): Promise<EventsData> {
-  const constantsFallback = DUTCH_EVENTS.map((event) => {
-    const now = new Date();
-    const eventStart = new Date(`${event.date}T${event.time}:00+01:00`);
-    const eventEnd = new Date(eventStart.getTime() + 3 * 60 * 60 * 1000);
-
-    let status: DutchEvent["status"] = "upcoming";
-    if (now >= eventEnd) status = "completed";
-    else if (now >= eventStart && now < eventEnd) status = "live";
-
-    return { ...event, status };
-  });
+async function fetchEventsWithCache(selectedCountryNoc: string): Promise<EventsData> {
+  const cacheKey = `${CLIENT_CACHE_KEYS.events}_${selectedCountryNoc}`;
 
   try {
     const res = await fetch(MEDAL_CHANCES_API_URL, { cache: "no-cache" });
     let liveEvents: DutchEvent[];
 
     if (!res.ok) {
-      liveEvents = await getDutchEventsWithChances();
+      liveEvents = await getEventsWithChancesForCountry(selectedCountryNoc);
     } else {
-      const data = await res.json();
-      const athletes = Array.isArray(data?.athletes) ? data.athletes : [];
-      const items = athletes
-        .filter((athlete: any) => String(athlete?.country || "").toLowerCase() === "ned")
-        .map((athlete: any) => ({
-          disciplinId: String(athlete?.disciplin_id || ""),
-          chance: String(athlete?.chance || "").trim(),
-        }))
-        .filter((item: any) => item.disciplinId && item.chance);
-      const chancesByDisciplin = items.reduce(
-        (
-          acc: Record<string, { label: string; score: number }>,
-          item: {
-            chance?: string;
-            disciplinId?: string;
-          }
-        ) => {
-          const rawLabel = String(item?.chance || "").trim();
-          if (!rawLabel) return acc;
-
-          const mapped =
-            rawLabel === "Big Favourite"
-              ? { label: "Hoge kans op goud", score: 5 }
-              : rawLabel === "Favourite"
-                ? { label: "Redelijke kans op zilver", score: 4 }
-                : rawLabel === "Challenger"
-                  ? { label: "Mogelijke kans op brons", score: 3 }
-                  : rawLabel === "Outsider"
-                    ? { label: "Kleine kans", score: 2 }
-                    : rawLabel === "Wildcard"
-                      ? { label: "Zeer kleine kans", score: 1 }
-                      : null;
-
-          if (!mapped) return acc;
-
-          const key = String(item?.disciplinId || "");
-          if (!key) return acc;
-
-          if (!acc[key] || mapped.score > acc[key].score) {
-            acc[key] = mapped;
-          }
-
-          return acc;
-        },
-        {}
-      );
-
-      liveEvents = await getDutchEventsWithChances(chancesByDisciplin);
+      const data = (await res.json()) as MedalChancesFeed;
+      liveEvents = buildDynamicCountryEvents(selectedCountryNoc, data);
+      if (liveEvents.length === 0) {
+        liveEvents = await getEventsWithChancesForCountry(selectedCountryNoc);
+      }
     }
 
     if (liveEvents.length === 0) {
       return {
-        events: constantsFallback,
+        events: [],
         servedFromCache: false,
-        error: "Live event data unavailable, fallback schedule shown.",
+        emptyStateMessage: "Geen evenementen gevonden voor dit land.",
         lastUpdated: new Date().toISOString(),
       };
     }
@@ -156,10 +276,10 @@ async function fetchEventsWithCache(): Promise<EventsData> {
       servedFromCache: false,
       lastUpdated: new Date().toISOString(),
     };
-    saveClientCache(CLIENT_CACHE_KEYS.events, payload, "live");
+    saveClientCache(cacheKey, payload, "live");
     return payload;
   } catch {
-    const cached = loadClientCache<EventsData>(CLIENT_CACHE_KEYS.events);
+    const cached = loadClientCache<EventsData>(cacheKey);
     if (cached && Array.isArray(cached.data.events) && cached.data.events.length > 0) {
       return {
         ...cached.data,
@@ -171,9 +291,9 @@ async function fetchEventsWithCache(): Promise<EventsData> {
     }
 
     return {
-      events: constantsFallback,
+      events: [],
       servedFromCache: false,
-      error: "Could not load event data, fallback schedule shown.",
+      emptyStateMessage: "Geen evenementen gevonden voor dit land.",
       lastUpdated: new Date().toISOString(),
     };
   }
@@ -181,24 +301,32 @@ async function fetchEventsWithCache(): Promise<EventsData> {
 
 export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
+  const [selectedCountryNoc, setSelectedCountryNoc] = useState(
+    DEFAULT_FAVORITE_COUNTRY_NOC
+  );
   const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
   const [notificationsSupported, setNotificationsSupported] = useState(false);
   const [testNotificationFeedback, setTestNotificationFeedback] = useState<string | null>(null);
-  const previousMedalsRef = useRef<{ gold: number; silver: number; bronze: number } | null>(null);
+  const previousMedalsRef = useRef<{
+    noc: string;
+    gold: number;
+    silver: number;
+    bronze: number;
+  } | null>(null);
   const previousStatusesRef = useRef<Record<string, DutchEvent["status"]>>({});
 
   // Fetch medal data with TanStack Query
   const medalsQuery = useQuery({
     queryKey: ["medals"],
     queryFn: fetchMedalTallyWithCache,
-    refetchInterval: 60_000, // Refetch every 60 seconds
+    refetchInterval: 60_000,
   });
 
   // Fetch schedule data with TanStack Query
   const eventsQuery = useQuery({
-    queryKey: ["events"],
-    queryFn: fetchEventsWithCache,
-    refetchInterval: 30_000, // Refetch every 30 seconds
+    queryKey: ["events", selectedCountryNoc],
+    queryFn: () => fetchEventsWithCache(selectedCountryNoc),
+    refetchInterval: 30_000,
   });
 
   // Compute derived data
@@ -206,12 +334,19 @@ export default function HomePage() {
   const eventsData = eventsQuery.data;
   const hasError = medalData?.error;
   const medals = medalData?.medals || [];
-  const nedMedals = medalData?.nedMedals || FALLBACK_NED;
+  const selectedCountryMedals = useMemo(
+    () => findCountryMedals(medals, selectedCountryNoc),
+    [medals, selectedCountryNoc]
+  );
+  const selectedCountryName = selectedCountryMedals.name;
+  const selectedCountryFlag =
+    selectedCountryMedals.flag || NOC_FLAGS[selectedCountryNoc] || "🏳️";
   const events = eventsData?.events || [];
   const isMedalsLoading = medalsQuery.isPending && !medalData;
   const isEventsLoading = eventsQuery.isPending && !eventsData;
   const isOfflineMode = Boolean(medalData?.servedFromCache || eventsData?.servedFromCache);
-  const lastUpdated = medalData?.cacheSavedAt || eventsData?.cacheSavedAt || medalData?.lastUpdated;
+  const lastUpdated =
+    medalData?.cacheSavedAt || eventsData?.cacheSavedAt || medalData?.lastUpdated;
   const gamesStartDate = new Date(`${GAMES_INFO.startDate}T00:00:00+01:00`);
   const gamesNotStarted = new Date() < gamesStartDate && medals.length === 0 && !isOfflineMode;
   const medalsFetchFailed = Boolean(hasError) && !isOfflineMode && !gamesNotStarted;
@@ -220,7 +355,29 @@ export default function HomePage() {
     () => events.filter((e: DutchEvent) => e.status === "completed").length,
     [events]
   );
-  const totalDutchEvents = events.length || DUTCH_EVENTS.length;
+  const staticSchedule = getStaticScheduleByNoc(selectedCountryNoc);
+  const totalCountryEvents = staticSchedule?.events.length || events.length;
+  const countryOptions = useMemo(() => {
+    const byNoc = new Map<string, { noc: string; name: string }>();
+    SCHEDULE_COUNTRIES.forEach((entry) => byNoc.set(entry.noc, entry));
+
+    medals.forEach((entry) => {
+      if (!entry?.noc) return;
+      byNoc.set(entry.noc, {
+        noc: entry.noc,
+        name: entry.name || entry.noc,
+      });
+    });
+
+    if (!byNoc.has(selectedCountryNoc)) {
+      byNoc.set(selectedCountryNoc, {
+        noc: selectedCountryNoc,
+        name: selectedCountryName || selectedCountryNoc,
+      });
+    }
+
+    return Array.from(byNoc.values()).sort((a, b) => a.name.localeCompare(b.name, "en"));
+  }, [medals, selectedCountryNoc, selectedCountryName]);
 
   // Find next upcoming or live event
   const nextEvent = useMemo(
@@ -232,35 +389,45 @@ export default function HomePage() {
   );
 
   useEffect(() => {
+    setSelectedCountryNoc(getFavoriteCountryNoc());
     setNotificationsSupported(supportsNotifications());
     setNotificationsEnabledState(getNotificationsEnabled());
   }, []);
 
   useEffect(() => {
+    previousMedalsRef.current = null;
+    previousStatusesRef.current = {};
+  }, [selectedCountryNoc]);
+
+  useEffect(() => {
     const current = {
-      gold: nedMedals.medals.gold,
-      silver: nedMedals.medals.silver,
-      bronze: nedMedals.medals.bronze,
+      noc: selectedCountryNoc,
+      gold: selectedCountryMedals.medals.gold,
+      silver: selectedCountryMedals.medals.silver,
+      bronze: selectedCountryMedals.medals.bronze,
     };
 
     const previous = previousMedalsRef.current;
-    if (!previous) {
+    if (!previous || previous.noc !== selectedCountryNoc) {
       previousMedalsRef.current = current;
       return;
     }
 
     const medalChanges: Array<{ type: "goud" | "zilver" | "brons"; from: number; to: number }> = [];
-    if (current.gold > previous.gold) medalChanges.push({ type: "goud", from: previous.gold, to: current.gold });
-    if (current.silver > previous.silver) medalChanges.push({ type: "zilver", from: previous.silver, to: current.silver });
-    if (current.bronze > previous.bronze) medalChanges.push({ type: "brons", from: previous.bronze, to: current.bronze });
+    if (current.gold > previous.gold)
+      medalChanges.push({ type: "goud", from: previous.gold, to: current.gold });
+    if (current.silver > previous.silver)
+      medalChanges.push({ type: "zilver", from: previous.silver, to: current.silver });
+    if (current.bronze > previous.bronze)
+      medalChanges.push({ type: "brons", from: previous.bronze, to: current.bronze });
 
     if (notificationsEnabled) {
       medalChanges.forEach((change) => {
-        const dedupeKey = `notif_medal_${change.type}_${change.to}`;
+        const dedupeKey = `notif_medal_${selectedCountryNoc}_${change.type}_${change.to}`;
         sendNotification(
-          "Team NL medaille-update",
+          `${selectedCountryName} medaille-update`,
           {
-            body: `Nederland heeft een extra ${change.type} medaille (${change.from} -> ${change.to}).`,
+            body: `${selectedCountryName} heeft een extra ${change.type} medaille (${change.from} -> ${change.to}).`,
           },
           dedupeKey
         );
@@ -268,7 +435,14 @@ export default function HomePage() {
     }
 
     previousMedalsRef.current = current;
-  }, [notificationsEnabled, nedMedals.medals.bronze, nedMedals.medals.gold, nedMedals.medals.silver]);
+  }, [
+    notificationsEnabled,
+    selectedCountryMedals.medals.bronze,
+    selectedCountryMedals.medals.gold,
+    selectedCountryMedals.medals.silver,
+    selectedCountryName,
+    selectedCountryNoc,
+  ]);
 
   useEffect(() => {
     const currentStatuses = events.reduce<Record<string, DutchEvent["status"]>>((acc, event) => {
@@ -290,9 +464,9 @@ export default function HomePage() {
     events.forEach((event) => {
       const previousStatus = previousStatuses[event.id];
       if (previousStatus && previousStatus !== "live" && event.status === "live") {
-        const dedupeKey = `notif_event_live_${event.id}_${event.date}`;
+        const dedupeKey = `notif_event_live_${selectedCountryNoc}_${event.id}_${event.date}`;
         sendNotification(
-          "Team NL nu live",
+          `${selectedCountryName} nu live`,
           {
             body: `${event.event} is live begonnen.`,
           },
@@ -302,7 +476,7 @@ export default function HomePage() {
     });
 
     previousStatusesRef.current = currentStatuses;
-  }, [events, notificationsEnabled]);
+  }, [events, notificationsEnabled, selectedCountryName, selectedCountryNoc]);
 
   const handleNotificationsToggle = async () => {
     if (!notificationsSupported) return;
@@ -347,13 +521,21 @@ export default function HomePage() {
     );
   };
 
+  const handleCountryChange = (noc: string) => {
+    const normalized = setFavoriteCountryNoc(noc);
+    setSelectedCountryNoc(normalized);
+  };
+
   return (
     <div className="relative overflow-hidden min-h-screen">
       {/* Background decoration */}
       <div
         className="fixed pointer-events-none"
         style={{
-          top: -200, right: -200, width: 600, height: 600,
+          top: -200,
+          right: -200,
+          width: 600,
+          height: 600,
           borderRadius: "50%",
           background: "radial-gradient(circle, rgba(255,102,0,0.06) 0%, transparent 70%)",
         }}
@@ -361,13 +543,24 @@ export default function HomePage() {
       <div
         className="fixed pointer-events-none"
         style={{
-          bottom: -100, left: -100, width: 400, height: 400,
+          bottom: -100,
+          left: -100,
+          width: 400,
+          height: 400,
           borderRadius: "50%",
           background: "radial-gradient(circle, rgba(255,102,0,0.04) 0%, transparent 70%)",
         }}
       />
 
-      <Header completedEvents={completedEvents} totalEvents={totalDutchEvents} />
+      <Header
+        selectedCountryName={selectedCountryName}
+        selectedCountryFlag={selectedCountryFlag}
+        selectedCountryNoc={selectedCountryNoc}
+        countryOptions={countryOptions}
+        onCountryChange={handleCountryChange}
+        completedEvents={completedEvents}
+        totalEvents={totalCountryEvents}
+      />
 
       {isOfflineMode && lastUpdated && (
         <section className="max-w-[720px] mx-auto mt-4 px-6">
@@ -394,7 +587,7 @@ export default function HomePage() {
         >
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs text-white/65">
-              Meldingen voor Team NL medailles en live-wedstrijden
+              Meldingen voor {selectedCountryName} medailles en live-wedstrijden
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -485,12 +678,15 @@ export default function HomePage() {
         <MedalOverviewSkeleton />
       ) : (
         <MedalOverview
-          nedMedals={nedMedals}
+          selectedCountryMedals={selectedCountryMedals}
+          selectedCountryName={selectedCountryName}
           onToggleTally={() => setShowTally(!showTally)}
           showTally={showTally}
         />
       )}
-      {showTally && medals.length > 0 && <MedalTally medals={medals} />}
+      {showTally && medals.length > 0 && (
+        <MedalTally medals={medals} highlightedNoc={selectedCountryNoc} />
+      )}
       {isEventsLoading ? (
         <>
           <NextEventHighlightSkeleton />
@@ -521,7 +717,11 @@ export default function HomePage() {
             </section>
           )}
           <NextEventHighlight event={nextEvent} />
-          <EventList events={events} nextEventId={nextEvent?.id || null} />
+          <EventList
+            events={events}
+            nextEventId={nextEvent?.id || null}
+            emptyStateMessage={eventsData?.emptyStateMessage}
+          />
         </>
       )}
       <Footer />

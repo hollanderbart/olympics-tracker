@@ -1,1 +1,7 @@
-export { fetchMedalTally, getDutchEvents, getDutchEventsWithChances } from './olympics'
+export {
+  fetchMedalTally,
+  findCountryMedals,
+  getDutchEvents,
+  getDutchEventsWithChances,
+  getEventsWithChancesForCountry,
+} from "./olympics";

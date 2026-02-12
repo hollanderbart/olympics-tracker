@@ -204,7 +204,10 @@ exports[`MedalOverview snapshots should match snapshot with zero medals state 1`
       class="mt-5 p-3 rounded-xl text-[13px] text-white/50 leading-relaxed"
       style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid rgba(255, 102, 0, 0.3);"
     >
-      🏁 De schaatsevementen zijn begonnen — De eerste grote kans voor Nederland op medailles! Houd de updates in de gaten.
+      🏁 De schaatsevementen zijn begonnen — De eerste grote kans voor
+       
+      Netherlands
+       op medailles! Houd de updates in de gaten.
     </div>
   </div>
 </section>

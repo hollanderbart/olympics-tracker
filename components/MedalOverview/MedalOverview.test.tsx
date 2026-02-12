@@ -12,7 +12,7 @@ jest.mock('canvas-confetti', () => {
 })
 
 describe('MedalOverview Component', () => {
-  const mockNedMedalsWithData: CountryMedals = {
+  const mockCountryMedalsWithData: CountryMedals = {
     noc: 'NED',
     name: 'Netherlands',
     flag: '🇳🇱',
@@ -25,7 +25,7 @@ describe('MedalOverview Component', () => {
     },
   }
 
-  const mockNedMedalsEmpty: CountryMedals = {
+  const mockCountryMedalsEmpty: CountryMedals = {
     noc: 'NED',
     name: 'Netherlands',
     flag: '🇳🇱',
@@ -42,7 +42,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -57,7 +58,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -71,7 +73,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -88,7 +91,8 @@ describe('MedalOverview Component', () => {
 
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -104,7 +108,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={true}
       />
@@ -117,7 +122,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -130,7 +136,8 @@ describe('MedalOverview Component', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsEmpty}
+        selectedCountryMedals={mockCountryMedalsEmpty}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -139,11 +146,28 @@ describe('MedalOverview Component', () => {
     expect(screen.getByText(/schaatsevementen zijn begonnen/i)).toBeInTheDocument()
   })
 
+  it('should not allow confetti trigger when gold medals are zero', () => {
+    const mockToggle = jest.fn()
+    render(
+      <MedalOverview
+        selectedCountryMedals={mockCountryMedalsEmpty}
+        selectedCountryName="Netherlands"
+        onToggleTally={mockToggle}
+        showTally={false}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: /Vier gouden medaille/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('should not display motivational message when medals exist', () => {
     const mockToggle = jest.fn()
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -155,13 +179,14 @@ describe('MedalOverview Component', () => {
   it('should calculate total correctly from individual medals', () => {
     const mockToggle = jest.fn()
     const customMedals: CountryMedals = {
-      ...mockNedMedalsEmpty,
+      ...mockCountryMedalsEmpty,
       medals: { gold: 5, silver: 3, bronze: 2, total: 10 },
     }
 
     render(
       <MedalOverview
-        nedMedals={customMedals}
+        selectedCountryMedals={customMedals}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -177,7 +202,8 @@ describe('MedalOverview Component', () => {
 
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />
@@ -208,7 +234,8 @@ describe('MedalOverview Component', () => {
 
     render(
       <MedalOverview
-        nedMedals={mockNedMedalsWithData}
+        selectedCountryMedals={mockCountryMedalsWithData}
+        selectedCountryName="Netherlands"
         onToggleTally={mockToggle}
         showTally={false}
       />

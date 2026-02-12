@@ -2,7 +2,12 @@ jest.mock('../telemetry/logger', () => ({
   logTelemetry: jest.fn(),
 }))
 
-import { fetchMedalTally, getDutchEvents } from './olympics'
+import {
+  fetchMedalTally,
+  findCountryMedals,
+  getDutchEvents,
+  getEventsWithChancesForCountry,
+} from './olympics'
 import { logTelemetry } from '../telemetry/logger'
 
 describe('Olympics Data Fetching', () => {
@@ -349,6 +354,35 @@ describe('Olympics Data Fetching', () => {
       expect(knownLive?.status).toBe('live')
 
       jest.useRealTimers()
+    })
+  })
+
+  describe('findCountryMedals', () => {
+    it('returns the requested country when available', () => {
+      const medals = [
+        {
+          noc: 'USA',
+          name: 'United States',
+          flag: '🇺🇸',
+          rank: 1,
+          medals: { gold: 4, silver: 1, bronze: 0, total: 5 },
+        },
+      ]
+
+      expect(findCountryMedals(medals, 'USA')).toEqual(medals[0])
+    })
+
+    it('returns empty fallback for unknown country', () => {
+      const result = findCountryMedals([], 'ITA')
+      expect(result.noc).toBe('ITA')
+      expect(result.medals.total).toBe(0)
+    })
+  })
+
+  describe('getEventsWithChancesForCountry', () => {
+    it('returns empty list for country without static schedule', async () => {
+      const events = await getEventsWithChancesForCountry('CHN')
+      expect(events).toEqual([])
     })
   })
 })

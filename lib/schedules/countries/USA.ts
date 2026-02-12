@@ -1,0 +1,58 @@
+import { CountrySchedule } from "@/lib/schedules/types";
+
+export const USA_SCHEDULE: CountrySchedule = {
+  noc: "USA",
+  name: "United States",
+  events: [
+    {
+      id: "usa-alp-wdh",
+      sport: "Alpine Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen Downhill",
+      date: "2026-02-08",
+      time: "11:00",
+      venue: "Cortina d'Ampezzo",
+      athletes: ["Breezy Johnson"],
+    },
+    {
+      id: "usa-fsk-team",
+      sport: "Figure Skating",
+      sportIcon: "⛸️",
+      event: "Team Event",
+      date: "2026-02-08",
+      time: "13:00",
+      venue: "Milano Ice Arena",
+      athletes: ["United States"],
+    },
+    {
+      id: "usa-frs-wmoguls",
+      sport: "Freestyle Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen Moguls",
+      date: "2026-02-11",
+      time: "12:30",
+      venue: "Livigno Snow Park",
+      athletes: ["Elizabeth Lemley", "Jaelin Kauf"],
+    },
+    {
+      id: "usa-ssk-m1000",
+      sport: "Speed Skating",
+      sportIcon: "⛸️",
+      event: "Mannen 1000m",
+      date: "2026-02-11",
+      time: "17:30",
+      venue: "Milano Speed Skating Stadium",
+      athletes: ["Jordan Stolz"],
+    },
+    {
+      id: "usa-ccs-w10km",
+      sport: "Cross-Country Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen 10km Interval Start",
+      date: "2026-02-12",
+      time: "14:00",
+      venue: "Val di Fiemme",
+      athletes: ["Jessie Diggins"],
+    },
+  ],
+};

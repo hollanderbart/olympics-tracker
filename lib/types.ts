@@ -14,6 +14,13 @@ export interface CountryMedals {
   medals: MedalCount;
 }
 
+export type FavoriteCountryNoc = string;
+
+export interface FavoriteCountryPreference {
+  noc: FavoriteCountryNoc;
+  updatedAt: string;
+}
+
 export interface MedalChance {
   label: string;
   score: number;

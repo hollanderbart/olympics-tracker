@@ -1,0 +1,58 @@
+import { CountrySchedule } from "@/lib/schedules/types";
+
+export const GER_SCHEDULE: CountrySchedule = {
+  noc: "GER",
+  name: "Germany",
+  events: [
+    {
+      id: "ger-lug-msingles",
+      sport: "Luge",
+      sportIcon: "🛷",
+      event: "Mannen Singles",
+      date: "2026-02-08",
+      time: "11:00",
+      venue: "Cortina Sliding Centre",
+      athletes: ["Max Langenhan"],
+    },
+    {
+      id: "ger-lug-wsingles",
+      sport: "Luge",
+      sportIcon: "🛷",
+      event: "Vrouwen Singles",
+      date: "2026-02-10",
+      time: "11:00",
+      venue: "Cortina Sliding Centre",
+      athletes: ["Julia Taubitz"],
+    },
+    {
+      id: "ger-sjp-mnh",
+      sport: "Ski Jumping",
+      sportIcon: "🪽",
+      event: "Mannen NH Individual",
+      date: "2026-02-09",
+      time: "17:00",
+      venue: "Predazzo",
+      athletes: ["Philipp Raimund"],
+    },
+    {
+      id: "ger-alp-wdh",
+      sport: "Alpine Skiing",
+      sportIcon: "🎿",
+      event: "Vrouwen Downhill",
+      date: "2026-02-08",
+      time: "11:00",
+      venue: "Cortina d'Ampezzo",
+      athletes: ["Emma Aicher"],
+    },
+    {
+      id: "ger-bth-mixed",
+      sport: "Biathlon",
+      sportIcon: "🎯",
+      event: "Mixed Relay 4x6km",
+      date: "2026-02-08",
+      time: "14:30",
+      venue: "Anterselva",
+      athletes: ["Germany"],
+    },
+  ],
+};

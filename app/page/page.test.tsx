@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { render } from '@/tests/setup/test-utils'
 import HomePage from '../page'
 import { CLIENT_CACHE_KEYS } from '@/lib/cache/clientCache'
+import { FAVORITE_COUNTRY_STORAGE_KEY } from '@/lib/constants'
 
 describe('HomePage Integration Tests', () => {
   beforeEach(() => {
@@ -16,8 +17,15 @@ describe('HomePage Integration Tests', () => {
   it('should render the header with correct title', () => {
     render(<HomePage />)
 
-    expect(screen.getAllByText(/Nederland/i)[0]).toBeInTheDocument()
+    expect(screen.getAllByText(/Netherlands|Nederland/i)[0]).toBeInTheDocument()
     expect(screen.getByText(/Olympische Winterspelen 2026/i)).toBeInTheDocument()
+  })
+
+  it('should default favorite country selector to NED', async () => {
+    render(<HomePage />)
+
+    const selector = await screen.findByLabelText(/Kies favoriete land/i)
+    expect(selector).toHaveValue('NED')
   })
 
   it('should display Dutch medal data from API', async () => {
@@ -97,7 +105,7 @@ describe('HomePage Integration Tests', () => {
     // Should still render with fallback data
     await waitFor(() => {
       // Fallback NED data shows 0 medals
-      expect(screen.getAllByText(/Nederland/i)[0]).toBeInTheDocument()
+      expect(screen.getAllByText(/Netherlands|Nederland/i)[0]).toBeInTheDocument()
     })
   })
 
@@ -106,7 +114,7 @@ describe('HomePage Integration Tests', () => {
 
     await waitFor(() => {
       // Header should show completed events count
-      const header = screen.getByText(/Nederland/i).closest('header')
+      const header = screen.getAllByText(/Netherlands|Nederland/i)[0].closest('header')
       expect(header).toBeInTheDocument()
     })
   })
@@ -149,8 +157,38 @@ describe('HomePage Integration Tests', () => {
 
     await waitFor(() => {
       // Verify all main sections are present
-      expect(screen.getByText(/Nederland/i)).toBeInTheDocument() // Header
+      expect(screen.getAllByText(/Netherlands|Nederland/i)[0]).toBeInTheDocument() // Header
       expect(screen.getByText(/Goud/i)).toBeInTheDocument() // Medal Overview
+    })
+  })
+
+  it('should persist selected favorite country after reload', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<HomePage />)
+    const selector = await screen.findByLabelText(/Kies favoriete land/i)
+    await screen.findByRole('option', { name: /United States/i })
+
+    await user.selectOptions(selector, 'USA')
+
+    const stored = localStorage.getItem(FAVORITE_COUNTRY_STORAGE_KEY)
+    expect(stored).toContain('USA')
+
+    unmount()
+    render(<HomePage />)
+
+    const reloadedSelector = await screen.findByLabelText(/Kies favoriete land/i)
+    expect(reloadedSelector).toHaveValue('USA')
+  })
+
+  it('should show empty state when selected country has no events', async () => {
+    localStorage.setItem(
+      FAVORITE_COUNTRY_STORAGE_KEY,
+      JSON.stringify({ noc: 'CHN', updatedAt: '2026-02-12T12:00:00.000Z' })
+    )
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Geen evenementen gevonden voor dit land/i)).toBeInTheDocument()
     })
   })
 

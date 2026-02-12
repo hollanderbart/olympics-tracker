@@ -215,9 +215,11 @@ function EventRow({
 export default function EventList({
   events,
   nextEventId,
+  emptyStateMessage,
 }: {
   events: DutchEvent[];
   nextEventId: string | null;
+  emptyStateMessage?: string;
 }) {
   const [selectedSport, setSelectedSport] = useState("all");
   const [statusFilter, setStatusFilter] = useState<
@@ -411,7 +413,9 @@ export default function EventList({
           )}
           {filtered.length === 0 && (
             <div className="p-10 text-center text-white/30 text-sm">
-              Geen evenementen gevonden voor dit filter.
+              {events.length === 0
+                ? (emptyStateMessage ?? "Geen evenementen gevonden voor dit land.")
+                : "Geen evenementen gevonden voor dit filter."}
             </div>
           )}
         </div>

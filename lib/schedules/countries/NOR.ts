@@ -1,0 +1,58 @@
+import { CountrySchedule } from "@/lib/schedules/types";
+
+export const NOR_SCHEDULE: CountrySchedule = {
+  noc: "NOR",
+  name: "Norway",
+  events: [
+    {
+      id: "nor-ccs-mskiathlon",
+      sport: "Cross-Country Skiing",
+      sportIcon: "🎿",
+      event: "Mannen Skiathlon",
+      date: "2026-02-08",
+      time: "13:00",
+      venue: "Val di Fiemme",
+      athletes: ["Johannes Hoesflot Klaebo"],
+    },
+    {
+      id: "nor-bth-m20km",
+      sport: "Biathlon",
+      sportIcon: "🎯",
+      event: "Mannen 20km Individual",
+      date: "2026-02-10",
+      time: "15:00",
+      venue: "Anterselva",
+      athletes: ["Johan-Olav Botn", "Sturla Holm Laegreid"],
+    },
+    {
+      id: "nor-sjp-wnh",
+      sport: "Ski Jumping",
+      sportIcon: "🪽",
+      event: "Vrouwen NH Individual",
+      date: "2026-02-07",
+      time: "16:30",
+      venue: "Predazzo",
+      athletes: ["Anna Odine Stroem"],
+    },
+    {
+      id: "nor-ssk-m5000",
+      sport: "Speed Skating",
+      sportIcon: "⛸️",
+      event: "Mannen 5000m",
+      date: "2026-02-08",
+      time: "16:00",
+      venue: "Milano Speed Skating Stadium",
+      athletes: ["Sander Eitrem"],
+    },
+    {
+      id: "nor-ncb-gundersen",
+      sport: "Nordic Combined",
+      sportIcon: "🎿",
+      event: "Gundersen NH/10km",
+      date: "2026-02-11",
+      time: "14:30",
+      venue: "Predazzo",
+      athletes: ["Jens Luraas Oftebro"],
+    },
+  ],
+};
