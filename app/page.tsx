@@ -220,6 +220,7 @@ export default function HomePage() {
     () => events.filter((e: DutchEvent) => e.status === "completed").length,
     [events]
   );
+  const totalDutchEvents = events.length || DUTCH_EVENTS.length;
 
   // Find next upcoming or live event
   const nextEvent = useMemo(
@@ -366,7 +367,7 @@ export default function HomePage() {
         }}
       />
 
-      <Header completedEvents={completedEvents} />
+      <Header completedEvents={completedEvents} totalEvents={totalDutchEvents} />
 
       {isOfflineMode && lastUpdated && (
         <section className="max-w-[720px] mx-auto mt-4 px-6">

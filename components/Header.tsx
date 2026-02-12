@@ -4,8 +4,10 @@ import { GAMES_INFO } from "@/lib/constants";
 
 export default function Header({
   completedEvents,
+  totalEvents,
 }: {
   completedEvents: number;
+  totalEvents: number;
 }) {
   return (
     <header className="animate-slide-up pt-8 px-6 max-w-[720px] mx-auto">
@@ -28,7 +30,7 @@ export default function Header({
       </div>
       <p className="text-[13px] text-white/35 font-medium mt-1 ml-[42px]">
         {GAMES_INFO.location} · 6–22 februari 2026 · {completedEvents} van{" "}
-        {GAMES_INFO.totalMedalEvents} medaille-evenementen voltooid
+        {totalEvents} NL-evenementen voltooid
       </p>
     </header>
   );
