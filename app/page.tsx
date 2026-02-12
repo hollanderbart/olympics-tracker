@@ -4,13 +4,16 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import MedalOverview from "@/components/MedalOverview";
+import MedalOverviewSkeleton from "@/components/MedalOverview/MedalOverviewSkeleton";
 import MedalTally from "@/components/MedalTally";
 import NextEventHighlight from "@/components/NextEventHighlight";
+import NextEventHighlightSkeleton from "@/components/NextEventHighlightSkeleton";
 import EventList from "@/components/EventList";
+import EventListSkeleton from "@/components/EventListSkeleton";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent } from "@/lib/types";
 import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
-import { MEDAL_CHANCES_API_URL, DUTCH_EVENTS, NED_NOC } from "@/lib/constants";
+import { MEDAL_CHANCES_API_URL, DUTCH_EVENTS, GAMES_INFO, NED_NOC } from "@/lib/constants";
 import {
   CLIENT_CACHE_KEYS,
   loadClientCache,
@@ -172,26 +175,34 @@ export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
 
   // Fetch medal data with TanStack Query
-  const { data: medalData } = useQuery({
+  const medalsQuery = useQuery({
     queryKey: ["medals"],
     queryFn: fetchMedalTallyWithCache,
     refetchInterval: 60_000, // Refetch every 60 seconds
   });
 
   // Fetch schedule data with TanStack Query
-  const { data: eventsData } = useQuery({
+  const eventsQuery = useQuery({
     queryKey: ["events"],
     queryFn: fetchEventsWithCache,
     refetchInterval: 30_000, // Refetch every 30 seconds
   });
 
   // Compute derived data
+  const medalData = medalsQuery.data;
+  const eventsData = eventsQuery.data;
   const hasError = medalData?.error;
   const medals = medalData?.medals || [];
   const nedMedals = medalData?.nedMedals || FALLBACK_NED;
   const events = eventsData?.events || [];
+  const isMedalsLoading = medalsQuery.isPending && !medalData;
+  const isEventsLoading = eventsQuery.isPending && !eventsData;
   const isOfflineMode = Boolean(medalData?.servedFromCache || eventsData?.servedFromCache);
   const lastUpdated = medalData?.cacheSavedAt || eventsData?.cacheSavedAt || medalData?.lastUpdated;
+  const gamesStartDate = new Date(`${GAMES_INFO.startDate}T00:00:00+01:00`);
+  const gamesNotStarted = new Date() < gamesStartDate && medals.length === 0 && !isOfflineMode;
+  const medalsFetchFailed = Boolean(hasError) && !isOfflineMode && !gamesNotStarted;
+  const eventsFetchFailed = Boolean(eventsData?.error) && !eventsData?.servedFromCache;
   const completedEvents = useMemo(
     () => events.filter((e: DutchEvent) => e.status === "completed").length,
     [events]
@@ -243,7 +254,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {hasError && !isOfflineMode && (
+      {gamesNotStarted && (
         <section className="max-w-[720px] mx-auto mt-6 px-6">
           <div
             className="rounded-xl p-6 text-center"
@@ -264,14 +275,75 @@ export default function HomePage() {
         </section>
       )}
 
-      <MedalOverview
-        nedMedals={nedMedals}
-        onToggleTally={() => setShowTally(!showTally)}
-        showTally={showTally}
-      />
+      {medalsFetchFailed && (
+        <section className="max-w-[720px] mx-auto mt-6 px-6">
+          <div
+            className="rounded-xl p-6 text-center"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div className="text-base font-bold text-white mb-2">
+              Medailledata kon niet worden geladen
+            </div>
+            <div className="text-sm text-white/60 mb-4">
+              Controleer je verbinding en probeer opnieuw.
+            </div>
+            <button
+              type="button"
+              onClick={() => medalsQuery.refetch()}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-oranje text-white hover:opacity-90 transition-opacity"
+            >
+              Opnieuw proberen
+            </button>
+          </div>
+        </section>
+      )}
+
+      {isMedalsLoading ? (
+        <MedalOverviewSkeleton />
+      ) : (
+        <MedalOverview
+          nedMedals={nedMedals}
+          onToggleTally={() => setShowTally(!showTally)}
+          showTally={showTally}
+        />
+      )}
       {showTally && medals.length > 0 && <MedalTally medals={medals} />}
-      <NextEventHighlight event={nextEvent} />
-      <EventList events={events} nextEventId={nextEvent?.id || null} />
+      {isEventsLoading ? (
+        <>
+          <NextEventHighlightSkeleton />
+          <EventListSkeleton />
+        </>
+      ) : (
+        <>
+          {eventsFetchFailed && (
+            <section className="max-w-[720px] mx-auto mt-5 px-6">
+              <div
+                className="rounded-xl p-4 text-center"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <div className="text-sm font-semibold text-white/85 mb-2">
+                  Programma-updates zijn tijdelijk niet beschikbaar
+                </div>
+                <button
+                  type="button"
+                  onClick={() => eventsQuery.refetch()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white hover:bg-white/15 transition-colors"
+                >
+                  Opnieuw laden
+                </button>
+              </div>
+            </section>
+          )}
+          <NextEventHighlight event={nextEvent} />
+          <EventList events={events} nextEventId={nextEvent?.id || null} />
+        </>
+      )}
       <Footer />
     </div>
   );
