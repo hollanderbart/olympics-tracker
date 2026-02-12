@@ -1,4 +1,9 @@
+jest.mock('../telemetry/logger', () => ({
+  logTelemetry: jest.fn(),
+}))
+
 import { fetchMedalTally, getDutchEvents } from './olympics'
+import { logTelemetry } from '../telemetry/logger'
 
 describe('Olympics Data Fetching', () => {
   const makeResponse = ({
@@ -245,6 +250,21 @@ describe('Olympics Data Fetching', () => {
       expect(result.medals).toEqual([])
       expect(result.nedMedals?.medals).toEqual({ gold: 0, silver: 0, bronze: 0, total: 0 })
       expect(result.error).toBeDefined()
+    })
+
+    it('should emit telemetry events for all-source failure fallback', async () => {
+      ;(logTelemetry as jest.Mock).mockClear()
+      global.fetch = jest.fn(() => Promise.resolve(makeResponse({ ok: false }))) as jest.Mock
+
+      await fetchMedalTally()
+
+      expect(logTelemetry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'medals_fetch_failure',
+          level: 'error',
+          meta: expect.objectContaining({ source: 'all', fallbackLevel: 4 }),
+        })
+      )
     })
   })
 

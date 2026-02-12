@@ -5,6 +5,7 @@ import {
   DUTCH_EVENTS,
 } from "../constants";
 import { CountryMedals, DutchEvent, NOC_FLAGS } from "../types";
+import { logTelemetry } from "../telemetry/logger";
 
 function createLiveMedalsUrl(): string {
   // Add cache-buster so browser/CDN layers do not serve stale medal data.
@@ -118,39 +119,133 @@ export async function fetchMedalTally(): Promise<{
   error?: string;
 }> {
   const now = new Date().toISOString();
+  const startedAt = Date.now();
+  const elapsedMs = () => Date.now() - startedAt;
 
   // Attempt 1: Scrape from the public medals page.
+  logTelemetry(
+    {
+      event: "medals_fetch_attempt",
+      level: "info",
+      meta: { source: "page", fallbackLevel: 1 },
+    },
+    { verbose: true }
+  );
   const html = await fetchTextWithFallback(OLYMPICS_MEDALS_PAGE);
   if (html) {
     const parsed = parseMedalsHTML(html);
     if (parsed.length > 0) {
       const nedMedals = findNetherlands(parsed);
+      logTelemetry({
+        event: "medals_fetch_success",
+        level: "info",
+        meta: {
+          source: "page",
+          fallbackLevel: 1,
+          rowsParsed: parsed.length,
+          elapsedMs: elapsedMs(),
+        },
+      });
       return { medals: parsed, nedMedals, lastUpdated: now };
     }
+    logTelemetry({
+      event: "medals_parse_failure",
+      level: "warn",
+      meta: { source: "page", fallbackLevel: 1, elapsedMs: elapsedMs() },
+    });
+  } else {
+    logTelemetry({
+      event: "medals_fetch_failure",
+      level: "warn",
+      meta: { source: "page", fallbackLevel: 1, elapsedMs: elapsedMs() },
+    });
   }
 
   // Attempt 2: Official JSON endpoint, with CORS-proxy fallback.
   const liveMedalsUrl = createLiveMedalsUrl();
+  logTelemetry(
+    {
+      event: "medals_fetch_attempt",
+      level: "info",
+      meta: { source: "json", fallbackLevel: 2 },
+    },
+    { verbose: true }
+  );
   const jsonData = await fetchJSONWithFallback(liveMedalsUrl);
   if (jsonData) {
     const parsed = parseOlympicsJSON(jsonData);
     if (parsed.length > 0) {
       const nedMedals = findNetherlands(parsed);
+      logTelemetry({
+        event: "medals_fetch_success",
+        level: "info",
+        meta: {
+          source: "json",
+          fallbackLevel: 2,
+          rowsParsed: parsed.length,
+          elapsedMs: elapsedMs(),
+        },
+      });
       return { medals: parsed, nedMedals, lastUpdated: now };
     }
+    logTelemetry({
+      event: "medals_parse_failure",
+      level: "warn",
+      meta: { source: "json", fallbackLevel: 2, elapsedMs: elapsedMs() },
+    });
+  } else {
+    logTelemetry({
+      event: "medals_fetch_failure",
+      level: "warn",
+      meta: { source: "json", fallbackLevel: 2, elapsedMs: elapsedMs() },
+    });
   }
 
   // Attempt 3: Public website scrape fallback (Wikipedia medal table).
+  logTelemetry(
+    {
+      event: "medals_fetch_attempt",
+      level: "info",
+      meta: { source: "wiki", fallbackLevel: 3 },
+    },
+    { verbose: true }
+  );
   const wikiHtml = await fetchTextWithFallback(WIKIPEDIA_MEDAL_TABLE_URL);
   if (wikiHtml) {
     const parsed = parseWikipediaMedalsHTML(wikiHtml);
     if (parsed.length > 0) {
       const nedMedals = findNetherlands(parsed);
+      logTelemetry({
+        event: "medals_fetch_success",
+        level: "info",
+        meta: {
+          source: "wiki",
+          fallbackLevel: 3,
+          rowsParsed: parsed.length,
+          elapsedMs: elapsedMs(),
+        },
+      });
       return { medals: parsed, nedMedals, lastUpdated: now };
     }
+    logTelemetry({
+      event: "medals_parse_failure",
+      level: "warn",
+      meta: { source: "wiki", fallbackLevel: 3, elapsedMs: elapsedMs() },
+    });
+  } else {
+    logTelemetry({
+      event: "medals_fetch_failure",
+      level: "warn",
+      meta: { source: "wiki", fallbackLevel: 3, elapsedMs: elapsedMs() },
+    });
   }
 
   // Return empty data with error
+  logTelemetry({
+    event: "medals_fetch_failure",
+    level: "error",
+    meta: { source: "all", fallbackLevel: 4, rowsParsed: 0, elapsedMs: elapsedMs() },
+  });
   return {
     medals: [],
     nedMedals: createEmptyNED(),
