@@ -23,6 +23,7 @@ import {
   getNotificationsEnabled,
   requestNotificationPermission,
   sendNotification,
+  sendTestNotification,
   setNotificationsEnabled,
   supportsNotifications,
 } from "@/lib/notifications/browserNotifications";
@@ -182,6 +183,7 @@ export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
   const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
   const [notificationsSupported, setNotificationsSupported] = useState(false);
+  const [testNotificationFeedback, setTestNotificationFeedback] = useState<string | null>(null);
   const previousMedalsRef = useRef<{ gold: number; silver: number; bronze: number } | null>(null);
   const previousStatusesRef = useRef<Record<string, DutchEvent["status"]>>({});
 
@@ -319,6 +321,34 @@ export default function HomePage() {
     setNotificationsEnabledState(allowed);
   };
 
+  const handleSendTestNotification = async () => {
+    if (!notificationsSupported) {
+      setTestNotificationFeedback("Browsermeldingen worden niet ondersteund.");
+      return;
+    }
+
+    let enabled = notificationsEnabled;
+
+    if (!enabled) {
+      const permission = await requestNotificationPermission();
+      enabled = permission === "granted";
+      setNotificationsEnabled(enabled);
+      setNotificationsEnabledState(enabled);
+    }
+
+    if (!enabled) {
+      setTestNotificationFeedback("Meldingen zijn niet toegestaan in deze browser.");
+      return;
+    }
+
+    const sent = sendTestNotification();
+    setTestNotificationFeedback(
+      sent
+        ? "Testmelding verzonden."
+        : "Testmelding kon niet worden verzonden."
+    );
+  };
+
   return (
     <div className="relative overflow-hidden min-h-screen">
       {/* Background decoration */}
@@ -358,33 +388,52 @@ export default function HomePage() {
 
       <section className="max-w-[720px] mx-auto mt-4 px-6">
         <div
-          className="rounded-xl p-3 flex items-center justify-between gap-3"
+          className="rounded-xl p-3"
           style={{
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          <div className="text-xs text-white/65">
-            Meldingen voor Team NL medailles en live-wedstrijden
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-white/65">
+              Meldingen voor Team NL medailles en live-wedstrijden
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendTestNotification}
+                disabled={!notificationsSupported}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  notificationsSupported
+                    ? "bg-white/10 text-white/75 hover:bg-white/15"
+                    : "bg-white/5 text-white/30 cursor-not-allowed"
+                }`}
+              >
+                Stuur testmelding
+              </button>
+              <button
+                type="button"
+                onClick={handleNotificationsToggle}
+                disabled={!notificationsSupported}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  notificationsSupported
+                    ? notificationsEnabled
+                      ? "bg-oranje text-white"
+                      : "bg-white/10 text-white/75 hover:bg-white/15"
+                    : "bg-white/5 text-white/30 cursor-not-allowed"
+                }`}
+              >
+                {!notificationsSupported
+                  ? "Niet ondersteund"
+                  : notificationsEnabled
+                    ? "Meldingen aan"
+                    : "Meldingen uit"}
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleNotificationsToggle}
-            disabled={!notificationsSupported}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-              notificationsSupported
-                ? notificationsEnabled
-                  ? "bg-oranje text-white"
-                  : "bg-white/10 text-white/75 hover:bg-white/15"
-                : "bg-white/5 text-white/30 cursor-not-allowed"
-            }`}
-          >
-            {!notificationsSupported
-              ? "Niet ondersteund"
-              : notificationsEnabled
-                ? "Meldingen aan"
-                : "Meldingen uit"}
-          </button>
+          {testNotificationFeedback && (
+            <div className="text-[11px] text-white/55 mt-2">{testNotificationFeedback}</div>
+          )}
         </div>
       </section>
 

@@ -60,3 +60,14 @@ export function sendNotification(
   markSent(dedupeKey);
   return true;
 }
+
+export function sendTestNotification(): boolean {
+  const timestamp = new Date().toLocaleTimeString("nl-NL");
+  return sendNotification(
+    "Team NL testmelding",
+    {
+      body: `Dit is een testmelding (${timestamp}).`,
+    },
+    `notif_test_${Date.now()}`
+  );
+}
