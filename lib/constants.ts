@@ -18,7 +18,7 @@ export const OLYMPICS_NED_SCHEDULE_PAGE =
 
 // Medal chance data source
 export const MEDAL_CHANCES_API_URL =
-  "https://winter-olympics-2026.datasportiq.com/api/data";
+  "https://winter-olympics-2026.vercel.app/api/data";
 
 // Revalidation interval in seconds (how often to re-fetch data)
 export const REVALIDATE_INTERVAL = 60; // 1 minute

@@ -40,7 +40,7 @@ export function setupFetchMock() {
       } as Response)
     }
 
-    if (urlString.includes("/api/medal-chances")) {
+    if (urlString.includes("winter-olympics-2026.vercel.app/api/data")) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ data: [] }),

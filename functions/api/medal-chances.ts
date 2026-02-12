@@ -1,10 +1,21 @@
-import { NextResponse } from "next/server";
-import { MEDAL_CHANCES_API_URL } from "../../../lib/constants";
+import { MEDAL_CHANCES_API_URL } from "../../lib/constants";
 
-export const runtime = "nodejs";
+type MedalChanceItem = {
+  disciplinId: string;
+  chance: string;
+  firstname: string;
+  lastname: string;
+};
 
-export async function GET() {
+type MedalChanceResponse = {
+  data: MedalChanceItem[];
+  lastUpdated: string;
+  error?: string;
+};
+
+export const onRequestGet = async () => {
   const now = new Date().toISOString();
+
   try {
     const res = await fetch(MEDAL_CHANCES_API_URL, {
       headers: {
@@ -14,9 +25,9 @@ export async function GET() {
     });
 
     if (!res.ok) {
-      return NextResponse.json(
+      return jsonResponse(
         { data: [], lastUpdated: now, error: "Failed to fetch medal chances." },
-        { status: 502 }
+        502
       );
     }
 
@@ -31,17 +42,27 @@ export async function GET() {
         firstname: String(athlete?.firstname || "").trim(),
         lastname: String(athlete?.lastname || "").trim(),
       }))
-      .filter((item: any) => item.disciplinId && item.chance);
+      .filter((item: MedalChanceItem) => item.disciplinId && item.chance);
 
-    return NextResponse.json({ data: items, lastUpdated: now });
+    return jsonResponse({ data: items, lastUpdated: now }, 200);
   } catch (error) {
-    return NextResponse.json(
+    return jsonResponse(
       {
         data: [],
         lastUpdated: now,
         error: "Could not fetch medal chances. Will retry shortly.",
       },
-      { status: 500 }
+      500
     );
   }
+};
+
+function jsonResponse(payload: MedalChanceResponse, status: number) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
 }

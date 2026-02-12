@@ -10,7 +10,7 @@ import EventList from "@/components/EventList";
 import Footer from "@/components/Footer";
 import { CountryMedals, DutchEvent } from "@/lib/types";
 import { fetchMedalTally, getDutchEventsWithChances } from "@/lib/olympics";
-import { DUTCH_EVENTS, NED_NOC } from "@/lib/constants";
+import { MEDAL_CHANCES_API_URL, DUTCH_EVENTS, NED_NOC } from "@/lib/constants";
 import {
   CLIENT_CACHE_KEYS,
   loadClientCache,
@@ -75,14 +75,21 @@ async function fetchEventsWithCache(): Promise<EventsData> {
   });
 
   try {
-    const res = await fetch("/api/medal-chances", { cache: "no-cache" });
+    const res = await fetch(MEDAL_CHANCES_API_URL, { cache: "no-cache" });
     let liveEvents: DutchEvent[];
 
     if (!res.ok) {
       liveEvents = await getDutchEventsWithChances();
     } else {
       const data = await res.json();
-      const items = Array.isArray(data?.data) ? data.data : [];
+      const athletes = Array.isArray(data?.athletes) ? data.athletes : [];
+      const items = athletes
+        .filter((athlete: any) => String(athlete?.country || "").toLowerCase() === "ned")
+        .map((athlete: any) => ({
+          disciplinId: String(athlete?.disciplin_id || ""),
+          chance: String(athlete?.chance || "").trim(),
+        }))
+        .filter((item: any) => item.disciplinId && item.chance);
       const chancesByDisciplin = items.reduce(
         (
           acc: Record<string, { label: string; score: number }>,
