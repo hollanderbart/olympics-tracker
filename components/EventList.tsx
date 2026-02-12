@@ -1,10 +1,73 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { List, type RowComponentProps } from "react-window";
 import { DutchEvent } from "@/lib/types";
 import { formatDate, getCountdown, isToday } from "./utils";
 
 const FAVORITES_STORAGE_KEY = "favorite_event_ids_v1";
+const VIRTUALIZATION_THRESHOLD = 30;
+const EVENT_ROW_HEIGHT = 112;
+const DATE_HEADER_HEIGHT = 38;
+const VIRTUAL_LIST_HEIGHT = 620;
+type VirtualItem =
+  | { kind: "date"; date: string; today: boolean }
+  | { kind: "event"; event: DutchEvent };
+type VirtualRowProps = {
+  items: VirtualItem[];
+  nextEventId: string | null;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (eventId: string) => void;
+};
+
+function VirtualRow({
+  index,
+  style,
+  items,
+  nextEventId,
+  favoriteIds,
+  onToggleFavorite,
+}: RowComponentProps<VirtualRowProps>) {
+  const item = items[index];
+  if (!item) return null;
+
+  if (item.kind === "date") {
+    return (
+      <div style={style}>
+        <div
+          className="flex items-center gap-2 px-5 py-2.5 border-b border-white/[0.06]"
+          style={{
+            background: item.today ? "rgba(255,102,0,0.06)" : "rgba(255,255,255,0.03)",
+          }}
+        >
+          <span
+            className={`text-xs font-bold uppercase tracking-wider ${
+              item.today ? "text-oranje" : "text-white/50"
+            }`}
+          >
+            {formatDate(item.date)}
+          </span>
+          {item.today && (
+            <span className="text-[10px] font-bold text-oranje bg-oranje/15 px-2 py-0.5 rounded">
+              VANDAAG
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={style}>
+      <EventRow
+        event={item.event}
+        isNext={item.event.id === nextEventId && item.event.status !== "live"}
+        isFavorite={favoriteIds.has(item.event.id)}
+        onToggleFavorite={onToggleFavorite}
+      />
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: DutchEvent["status"] }) {
   if (status === "live") {
@@ -206,12 +269,27 @@ export default function EventList({
     [events, statusFilter, selectedSport, favoritesOnly, favoriteIds]
   );
 
-  // Group by date
-  const grouped: Record<string, DutchEvent[]> = {};
-  filtered.forEach((e) => {
-    if (!grouped[e.date]) grouped[e.date] = [];
-    grouped[e.date].push(e);
-  });
+  const groupedEntries = useMemo(() => {
+    const grouped: Record<string, DutchEvent[]> = {};
+    filtered.forEach((e) => {
+      if (!grouped[e.date]) grouped[e.date] = [];
+      grouped[e.date].push(e);
+    });
+    return Object.entries(grouped);
+  }, [filtered]);
+
+  const virtualItems = useMemo<VirtualItem[]>(
+    () =>
+      groupedEntries.flatMap(([date, dateEvents]) => [
+        { kind: "date" as const, date, today: isToday(date) },
+        ...dateEvents.map((event) => ({ kind: "event" as const, event })),
+      ]),
+    [groupedEntries]
+  );
+
+  const shouldVirtualize = filtered.length > VIRTUALIZATION_THRESHOLD;
+  const getItemSize = (index: number) =>
+    virtualItems[index]?.kind === "date" ? DATE_HEADER_HEIGHT : EVENT_ROW_HEIGHT;
 
   return (
     <>
@@ -274,41 +352,63 @@ export default function EventList({
       {/* Events */}
       <section className="max-w-[720px] mx-auto px-6 pb-20">
         <div className="border border-white/[0.06] rounded-xl overflow-hidden bg-white/[0.01]">
-          {Object.entries(grouped).map(([date, dateEvents]) => {
-            const today = isToday(date);
-            return (
-              <div key={date}>
-                <div
-                  className="flex items-center gap-2 px-5 py-2.5 border-b border-white/[0.06]"
-                  style={{
-                    background: today ? "rgba(255,102,0,0.06)" : "rgba(255,255,255,0.03)",
-                  }}
-                >
-                  <span
-                    className={`text-xs font-bold uppercase tracking-wider ${
-                      today ? "text-oranje" : "text-white/50"
-                    }`}
+          {shouldVirtualize ? (
+            <List
+              style={{
+                height: Math.min(
+                VIRTUAL_LIST_HEIGHT,
+                virtualItems.reduce((total, _item, index) => total + getItemSize(index), 0)
+                ),
+              }}
+              rowCount={virtualItems.length}
+              rowHeight={(index) => getItemSize(index)}
+              rowComponent={VirtualRow}
+              rowProps={{
+                items: virtualItems,
+                nextEventId,
+                favoriteIds,
+                onToggleFavorite: toggleFavorite,
+              }}
+            >
+              {null}
+            </List>
+          ) : (
+            groupedEntries.map(([date, dateEvents]) => {
+              const today = isToday(date);
+              return (
+                <div key={date}>
+                  <div
+                    className="flex items-center gap-2 px-5 py-2.5 border-b border-white/[0.06]"
+                    style={{
+                      background: today ? "rgba(255,102,0,0.06)" : "rgba(255,255,255,0.03)",
+                    }}
                   >
-                    {formatDate(date)}
-                  </span>
-                  {today && (
-                    <span className="text-[10px] font-bold text-oranje bg-oranje/15 px-2 py-0.5 rounded">
-                      VANDAAG
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider ${
+                        today ? "text-oranje" : "text-white/50"
+                      }`}
+                    >
+                      {formatDate(date)}
                     </span>
-                  )}
+                    {today && (
+                      <span className="text-[10px] font-bold text-oranje bg-oranje/15 px-2 py-0.5 rounded">
+                        VANDAAG
+                      </span>
+                    )}
+                  </div>
+                  {dateEvents.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      isNext={event.id === nextEventId && event.status !== "live"}
+                      isFavorite={favoriteIds.has(event.id)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
                 </div>
-                {dateEvents.map((event) => (
-                  <EventRow
-                    key={event.id}
-                    event={event}
-                    isNext={event.id === nextEventId && event.status !== "live"}
-                    isFavorite={favoriteIds.has(event.id)}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
-              </div>
-            );
-          })}
+              );
+            })
+          )}
           {filtered.length === 0 && (
             <div className="p-10 text-center text-white/30 text-sm">
               Geen evenementen gevonden voor dit filter.

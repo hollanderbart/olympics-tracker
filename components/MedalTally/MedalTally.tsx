@@ -1,6 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
+import { List, type RowComponentProps } from "react-window";
 import { CountryMedals } from "@/lib/types";
+
+const VIRTUALIZATION_THRESHOLD = 30;
+const TALLY_ROW_HEIGHT = 42;
+const VIRTUAL_LIST_HEIGHT = 520;
+type VirtualRowProps = {
+  items: CountryMedals[];
+};
 
 function TallyRow({
   entry,
@@ -45,14 +54,29 @@ function TallyRow({
 
 export default function MedalTally({ medals }: { medals: CountryMedals[] }) {
   // Sort: gold desc, then silver, then bronze
-  const sorted = [...medals]
-    .filter((m) => m.medals.total > 0 || m.noc === "NED")
-    .sort(
-      (a, b) =>
-        b.medals.gold - a.medals.gold ||
-        b.medals.silver - a.medals.silver ||
-        b.medals.bronze - a.medals.bronze
+  const sorted = useMemo(
+    () =>
+      [...medals]
+        .filter((m) => m.medals.total > 0 || m.noc === "NED")
+        .sort(
+          (a, b) =>
+            b.medals.gold - a.medals.gold ||
+            b.medals.silver - a.medals.silver ||
+            b.medals.bronze - a.medals.bronze
+        ),
+    [medals]
+  );
+  const shouldVirtualize = sorted.length > VIRTUALIZATION_THRESHOLD;
+
+  const VirtualRow = ({ index, style, items }: RowComponentProps<VirtualRowProps>) => {
+    const entry = items[index];
+    if (!entry) return null;
+    return (
+      <div style={style}>
+        <TallyRow entry={entry} rank={index + 1} isNED={entry.noc === "NED"} />
+      </div>
     );
+  };
 
   return (
     <section className="max-w-[720px] mx-auto mt-3 px-6 animate-slide-up">
@@ -70,14 +94,26 @@ export default function MedalTally({ medals }: { medals: CountryMedals[] }) {
           <span className="text-center text-[#CD7F32]">🥉</span>
           <span className="text-center">Tot</span>
         </div>
-        {sorted.map((entry, i) => (
-          <TallyRow
-            key={entry.noc}
-            entry={entry}
-            rank={i + 1}
-            isNED={entry.noc === "NED"}
-          />
-        ))}
+        {shouldVirtualize ? (
+          <List
+            style={{ height: Math.min(VIRTUAL_LIST_HEIGHT, sorted.length * TALLY_ROW_HEIGHT) }}
+            rowCount={sorted.length}
+            rowHeight={TALLY_ROW_HEIGHT}
+            rowComponent={VirtualRow}
+            rowProps={{ items: sorted }}
+          >
+            {null}
+          </List>
+        ) : (
+          sorted.map((entry, i) => (
+            <TallyRow
+              key={entry.noc}
+              entry={entry}
+              rank={i + 1}
+              isNED={entry.noc === "NED"}
+            />
+          ))
+        )}
         {sorted.length === 0 && (
           <div className="p-8 text-center text-white/30 text-sm">
             Nog geen medailles uitgereikt.
