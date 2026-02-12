@@ -22,7 +22,7 @@ export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
 
   // Fetch medal data with TanStack Query
-  const { data: medalData, isLoading: medalsLoading } = useQuery({
+  const { data: medalData } = useQuery({
     queryKey: ["medals"],
     queryFn: fetchMedalTally,
     refetchInterval: 60_000, // Refetch every 60 seconds

@@ -3,16 +3,112 @@ import {
   OLYMPICS_MEDALS_PAGE,
   NED_NOC,
   DUTCH_EVENTS,
-  REVALIDATE_INTERVAL,
 } from "../constants";
 import { CountryMedals, DutchEvent, NOC_FLAGS } from "../types";
+
+function createLiveMedalsUrl(): string {
+  // Add cache-buster so browser/CDN layers do not serve stale medal data.
+  const url = new URL(OLYMPICS_MEDALS_URL);
+  url.searchParams.set("_ts", Date.now().toString());
+  return url.toString();
+}
+
+function createProxyUrl(sourceUrl: string): string {
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(sourceUrl)}`;
+}
+
+function createProxyCandidates(sourceUrl: string): string[] {
+  return [
+    sourceUrl,
+    createProxyUrl(sourceUrl),
+    `https://r.jina.ai/http://${sourceUrl.replace(/^https?:\/\//, "")}`,
+    `https://cors.isomorphic-git.org/${sourceUrl}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(sourceUrl)}`,
+  ];
+}
+
+const WIKIPEDIA_MEDAL_TABLE_URL =
+  "https://en.wikipedia.org/wiki/2026_Winter_Olympics_medal_table";
+
+function parseJsonLoose(text: string): any | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // Direct JSON body.
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Keep trying.
+  }
+
+  // Some proxies prepend metadata; extract first JSON object/array.
+  const objectStart = trimmed.indexOf("{");
+  const arrayStart = trimmed.indexOf("[");
+  const startCandidates = [objectStart, arrayStart].filter((n) => n >= 0);
+  if (startCandidates.length === 0) return null;
+  const start = Math.min(...startCandidates);
+
+  const objectEnd = trimmed.lastIndexOf("}");
+  const arrayEnd = trimmed.lastIndexOf("]");
+  const end = Math.max(objectEnd, arrayEnd);
+  if (end <= start) return null;
+
+  try {
+    return JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSerializedHtml(html: string): string {
+  return html
+    .replace(/\\u0022/g, '"')
+    .replace(/\\x22/g, '"')
+    .replace(/&quot;/g, '"')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\");
+}
+
+async function fetchJSONWithFallback(url: string): Promise<any | null> {
+  const candidates = createProxyCandidates(url);
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate, { cache: "no-store" });
+      if (!res.ok) continue;
+      const body = await res.text();
+      const parsed = parseJsonLoose(body);
+      if (parsed) return parsed;
+    } catch {
+      // Try next source.
+    }
+  }
+
+  return null;
+}
+
+async function fetchTextWithFallback(url: string): Promise<string | null> {
+  const candidates = createProxyCandidates(url);
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate, { cache: "no-store" });
+      if (!res.ok) continue;
+      return await res.text();
+    } catch {
+      // Try next source.
+    }
+  }
+
+  return null;
+}
 
 /**
  * Fetches medal tally data from olympics.com
  *
  * Strategy:
- * 1. Try the official JSON data endpoint (pattern from Paris 2024)
- * 2. If that fails, try scraping the medals page
+ * 1. Try scraping the official medals webpage
+ * 2. If that fails, try the official JSON data endpoint
  * 3. If all fails, return empty data with error flag
  */
 export async function fetchMedalTally(): Promise<{
@@ -23,60 +119,35 @@ export async function fetchMedalTally(): Promise<{
 }> {
   const now = new Date().toISOString();
 
-  try {
-    // Attempt 1: Try the JSON endpoint
-    console.log("Fetching medals from:", OLYMPICS_MEDALS_URL);
-    const res = await fetch(OLYMPICS_MEDALS_URL, {
-      headers: {
-        "User-Agent": "DutchOlympicTracker/1.0",
-        Accept: "application/json",
-      },
-      cache: "no-cache",
-    });
-
-    console.log("Response status:", res.status);
-
-    if (res.ok) {
-      const data = await res.json();
-      console.log("Received data structure:", Object.keys(data));
-      const parsed = parseOlympicsJSON(data);
-      console.log("Parsed medals count:", parsed.length);
-      if (parsed.length > 0) {
-        const nedMedals =
-          parsed.find((m) => m.noc === NED_NOC) || createEmptyNED();
-        return { medals: parsed, nedMedals, lastUpdated: now };
-      }
-    } else {
-      console.warn("API returned status:", res.status);
+  // Attempt 1: Scrape from the public medals page.
+  const html = await fetchTextWithFallback(OLYMPICS_MEDALS_PAGE);
+  if (html) {
+    const parsed = parseMedalsHTML(html);
+    if (parsed.length > 0) {
+      const nedMedals = findNetherlands(parsed);
+      return { medals: parsed, nedMedals, lastUpdated: now };
     }
-  } catch (e) {
-    console.error("JSON endpoint failed:", e);
   }
 
-  try {
-    // Attempt 2: Try fetching and parsing the HTML medals page
-    console.log("Trying HTML fallback from:", OLYMPICS_MEDALS_PAGE);
-    const res = await fetch(OLYMPICS_MEDALS_PAGE, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Accept: "text/html",
-      },
-      cache: "no-cache",
-    });
-
-    if (res.ok) {
-      const html = await res.text();
-      console.log("HTML page fetched, length:", html.length);
-      const parsed = parseMedalsHTML(html);
-      console.log("Parsed from HTML, medals count:", parsed.length);
-      if (parsed.length > 0) {
-        const nedMedals =
-          parsed.find((m) => m.noc === NED_NOC) || createEmptyNED();
-        return { medals: parsed, nedMedals, lastUpdated: now };
-      }
+  // Attempt 2: Official JSON endpoint, with CORS-proxy fallback.
+  const liveMedalsUrl = createLiveMedalsUrl();
+  const jsonData = await fetchJSONWithFallback(liveMedalsUrl);
+  if (jsonData) {
+    const parsed = parseOlympicsJSON(jsonData);
+    if (parsed.length > 0) {
+      const nedMedals = findNetherlands(parsed);
+      return { medals: parsed, nedMedals, lastUpdated: now };
     }
-  } catch (e) {
-    console.error("HTML fallback failed:", e);
+  }
+
+  // Attempt 3: Public website scrape fallback (Wikipedia medal table).
+  const wikiHtml = await fetchTextWithFallback(WIKIPEDIA_MEDAL_TABLE_URL);
+  if (wikiHtml) {
+    const parsed = parseWikipediaMedalsHTML(wikiHtml);
+    if (parsed.length > 0) {
+      const nedMedals = findNetherlands(parsed);
+      return { medals: parsed, nedMedals, lastUpdated: now };
+    }
   }
 
   // Return empty data with error
@@ -105,21 +176,199 @@ function parseOlympicsJSON(data: any): CountryMedals[] {
       entries = data;
     }
 
-    return entries.map((entry: any, index: number) => ({
-      noc: entry.n_NOC || entry.noc || entry.code || "",
-      name: entry.n_NOCLong || entry.description || entry.longDescription || entry.country || "",
-      flag: NOC_FLAGS[entry.n_NOC || entry.noc || entry.code || ""] || "🏳️",
-      rank: parseInt(entry.n_RankGold || entry.rank || index + 1),
-      medals: {
-        gold: parseInt(entry.n_Gold || entry.gold || 0),
-        silver: parseInt(entry.n_Silver || entry.silver || 0),
-        bronze: parseInt(entry.n_Bronze || entry.bronze || 0),
-        total: parseInt(entry.n_Total || entry.total || 0),
-      },
-    }));
+    return entries.map((entry: any, index: number) => {
+      const noc = entry.n_NOC || entry.organisation || entry.noc || entry.code || "";
+      const medals = extractMedalTotals(entry);
+
+      return {
+        noc,
+        name:
+          entry.n_NOCLong ||
+          entry.description ||
+          entry.longDescription ||
+          entry.country ||
+          "",
+        flag: NOC_FLAGS[noc] || "🏳️",
+        rank: parseMedalNumber(entry.n_RankGold || entry.rank || entry.sortRank || index + 1),
+        medals,
+      };
+    });
   } catch {
     return [];
   }
+}
+
+function extractMedalTotals(entry: any): CountryMedals["medals"] {
+  const totalsByType = Array.isArray(entry?.medalsNumber)
+    ? entry.medalsNumber.find(
+        (m: any) => String(m?.type ?? "").toLowerCase() === "total"
+      )
+    : null;
+
+  const gold = parseMedalNumber(
+    totalsByType?.gold ?? entry?.n_Gold ?? entry?.gold ?? 0
+  );
+  const silver = parseMedalNumber(
+    totalsByType?.silver ?? entry?.n_Silver ?? entry?.silver ?? 0
+  );
+  const bronze = parseMedalNumber(
+    totalsByType?.bronze ?? entry?.n_Bronze ?? entry?.bronze ?? 0
+  );
+
+  let total = parseMedalNumber(
+    totalsByType?.total ?? entry?.n_Total ?? entry?.total ?? gold + silver + bronze
+  );
+  if (total === 0 && Array.isArray(entry?.disciplines)) {
+    total = entry.disciplines.reduce(
+      (acc: number, d: any) => acc + parseMedalNumber(d?.total),
+      0
+    );
+  }
+
+  return {
+    gold,
+    silver,
+    bronze,
+    total: total || gold + silver + bronze,
+  };
+}
+
+function parseMedalNumber(value: unknown): number {
+  const n = Number.parseInt(String(value ?? "0"), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+const COUNTRY_NAME_TO_NOC: Record<string, string> = {
+  netherlands: "NED",
+  norway: "NOR",
+  italy: "ITA",
+  "united states": "USA",
+  usa: "USA",
+  germany: "GER",
+  sweden: "SWE",
+  switzerland: "SUI",
+  austria: "AUT",
+  france: "FRA",
+  canada: "CAN",
+  japan: "JPN",
+  china: "CHN",
+  "south korea": "KOR",
+  czechia: "CZE",
+  slovenia: "SLO",
+  poland: "POL",
+  belgium: "BEL",
+  bulgaria: "BUL",
+  latvia: "LAT",
+};
+
+function parseMedalsFromText(raw: string): CountryMedals[] {
+  const text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const matches = text.matchAll(
+    /(?:^|\s)(\d{1,2})\s+([A-Za-z][A-Za-z .'-]{2,40}?)\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,3})(?=\s|$)/g
+  );
+
+  const rows: CountryMedals[] = [];
+  for (const m of matches) {
+    const rank = parseMedalNumber(m[1]);
+    const name = m[2].trim();
+    const gold = parseMedalNumber(m[3]);
+    const silver = parseMedalNumber(m[4]);
+    const bronze = parseMedalNumber(m[5]);
+    const total = parseMedalNumber(m[6]);
+
+    if (gold + silver + bronze !== total) continue;
+    if (rank <= 0) continue;
+
+    const noc =
+      COUNTRY_NAME_TO_NOC[name.toLowerCase()] || name.slice(0, 3).toUpperCase();
+    rows.push({
+      noc,
+      name,
+      flag: NOC_FLAGS[noc] || "🏳️",
+      rank,
+      medals: { gold, silver, bronze, total },
+    });
+  }
+
+  const unique = new Map<string, CountryMedals>();
+  for (const row of rows) {
+    if (!unique.has(row.noc)) unique.set(row.noc, row);
+  }
+  return Array.from(unique.values());
+}
+
+function findMedalsTable(value: any): any[] | null {
+  if (!value || typeof value !== "object") return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findMedalsTable(item);
+      if (found && found.length > 0) return found;
+    }
+    return null;
+  }
+
+  const direct = (value as { medalsTable?: any[] }).medalsTable;
+  if (Array.isArray(direct) && direct.length > 0) return direct;
+
+  for (const child of Object.values(value)) {
+    const found = findMedalsTable(child);
+    if (found && found.length > 0) return found;
+  }
+
+  return null;
+}
+
+function extractScriptJsonPayloads(html: string): any[] {
+  const payloads: any[] = [];
+  const matches = html.matchAll(
+    /<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g
+  );
+
+  for (const match of matches) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    try {
+      payloads.push(JSON.parse(raw));
+    } catch {
+      // Ignore non-JSON payloads.
+    }
+  }
+
+  const genericScriptMatches = html.matchAll(
+    /<script[^>]*>([\s\S]*?)<\/script>/g
+  );
+  for (const match of genericScriptMatches) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    if (!/(medal|n_NOC|medalsTable|Netherlands)/i.test(raw)) continue;
+
+    const parsed = parseJsonLoose(raw);
+    if (parsed) payloads.push(parsed);
+  }
+
+  return payloads;
+}
+
+function extractMedalRowsByRegex(html: string): any[] {
+  const rows: any[] = [];
+  const rowMatches = html.matchAll(
+    /"n_NOC"\s*:\s*"([^"]+)"[\s\S]*?"n_NOCLong"\s*:\s*"([^"]+)"[\s\S]*?"n_Gold"\s*:\s*"?(\d+)"?[\s\S]*?"n_Silver"\s*:\s*"?(\d+)"?[\s\S]*?"n_Bronze"\s*:\s*"?(\d+)"?[\s\S]*?"n_Total"\s*:\s*"?(\d+)"?[\s\S]*?"n_RankGold"\s*:\s*"?(\d+)"?/g
+  );
+
+  for (const match of rowMatches) {
+    rows.push({
+      n_NOC: match[1],
+      n_NOCLong: match[2],
+      n_Gold: match[3],
+      n_Silver: match[4],
+      n_Bronze: match[5],
+      n_Total: match[6],
+      n_RankGold: match[7],
+    });
+  }
+
+  return rows;
 }
 
 /**
@@ -128,23 +377,85 @@ function parseOlympicsJSON(data: any): CountryMedals[] {
  */
 function parseMedalsHTML(html: string): CountryMedals[] {
   try {
-    // Try to find __NEXT_DATA__ JSON embedded in the page
-    const nextDataMatch = html.match(
-      /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s
-    );
+    const variants = [html, normalizeSerializedHtml(html)];
 
-    if (nextDataMatch) {
-      const nextData = JSON.parse(nextDataMatch[1]);
-      const table =
-        nextData?.props?.pageProps?.initialMedals?.medalStandings?.medalsTable;
-      if (table) {
-        return parseOlympicsJSON({ medalStandings: { medalsTable: table } });
+    for (const variant of variants) {
+      const payloads = extractScriptJsonPayloads(variant);
+      for (const payload of payloads) {
+        const table = findMedalsTable(payload);
+        if (table && table.length > 0) {
+          const parsed = parseOlympicsJSON({ medalStandings: { medalsTable: table } });
+          if (parsed.length > 0) return parsed;
+        }
+      }
+
+      const regexRows = extractMedalRowsByRegex(variant);
+      if (regexRows.length > 0) {
+        const parsed = parseOlympicsJSON(regexRows);
+        if (parsed.length > 0) return parsed;
+      }
+
+      const textParsed = parseMedalsFromText(variant);
+      if (textParsed.length > 0) {
+        return textParsed;
       }
     }
   } catch {
     // HTML parsing failed
   }
   return [];
+}
+
+function parseWikipediaMedalsHTML(html: string): CountryMedals[] {
+  try {
+    const rows: CountryMedals[] = [];
+    const trMatches = html.matchAll(/<tr[\s\S]*?<\/tr>/g);
+
+    for (const tr of trMatches) {
+      const row = tr[0]
+        .replace(/<sup[\s\S]*?<\/sup>/g, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Typical row shape after stripping HTML:
+      // "1 Norway 6 3 2 11"
+      const m = row.match(
+        /^(\d{1,2})\s+([A-Za-z][A-Za-z .,'-]{2,40}?)\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,3})$/
+      );
+      if (!m) continue;
+
+      const rank = parseMedalNumber(m[1]);
+      const name = m[2].trim();
+      const gold = parseMedalNumber(m[3]);
+      const silver = parseMedalNumber(m[4]);
+      const bronze = parseMedalNumber(m[5]);
+      const total = parseMedalNumber(m[6]);
+      if (rank <= 0) continue;
+      if (gold + silver + bronze !== total) continue;
+
+      const noc =
+        COUNTRY_NAME_TO_NOC[name.toLowerCase()] || name.slice(0, 3).toUpperCase();
+      rows.push({
+        noc,
+        name,
+        flag: NOC_FLAGS[noc] || "🏳️",
+        rank,
+        medals: { gold, silver, bronze, total },
+      });
+    }
+
+    if (rows.length === 0) return [];
+
+    const unique = new Map<string, CountryMedals>();
+    for (const row of rows) {
+      if (!unique.has(row.noc)) unique.set(row.noc, row);
+    }
+    return Array.from(unique.values());
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -179,4 +490,20 @@ function createEmptyNED(): CountryMedals {
     rank: 0,
     medals: { gold: 0, silver: 0, bronze: 0, total: 0 },
   };
+}
+
+function findNetherlands(medals: CountryMedals[]): CountryMedals {
+  const byCode = medals.find((m) => m.noc === NED_NOC || m.noc === "NLD");
+  if (byCode) return byCode;
+
+  const byName = medals.find((m) => m.name.toLowerCase().includes("nether"));
+  if (byName) {
+    return {
+      ...byName,
+      noc: NED_NOC,
+      flag: "🇳🇱",
+    };
+  }
+
+  return createEmptyNED();
 }

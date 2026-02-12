@@ -33,6 +33,46 @@ describe('Olympics Data Fetching', () => {
       expect(nedMedals?.medals.total).toBe(6)
     })
 
+    it('should parse olympics medalsTable format with organisation and medalsNumber', async () => {
+      const payload = {
+        medalStandings: {
+          medalsTable: [
+            {
+              organisation: 'NOR',
+              description: 'Norway',
+              rank: 1,
+              medalsNumber: [{ type: 'Total', gold: 7, silver: 2, bronze: 5, total: 14 }],
+            },
+            {
+              organisation: 'NED',
+              description: 'Netherlands',
+              rank: 10,
+              medalsNumber: [{ type: 'Total', gold: 1, silver: 3, bronze: 0, total: 4 }],
+            },
+          ],
+        },
+      }
+
+      global.fetch = jest.fn((url: string | URL | Request) => {
+        const value = url.toString()
+        if (value.includes('/milano-cortina-2026/medals')) {
+          return Promise.resolve({ ok: false } as Response)
+        }
+        if (value.includes('CIS_MedalNOCs')) {
+          return Promise.resolve({
+            ok: true,
+            text: async () => JSON.stringify(payload),
+          } as Response)
+        }
+        return Promise.resolve({ ok: false } as Response)
+      }) as jest.Mock
+
+      const result = await fetchMedalTally()
+      expect(result.nedMedals?.noc).toBe('NED')
+      expect(result.nedMedals?.medals).toEqual({ gold: 1, silver: 3, bronze: 0, total: 4 })
+      expect(result.medals.some((m) => m.noc === 'NOR')).toBe(true)
+    })
+
     it('should include multiple countries in medal data', async () => {
       const result = await fetchMedalTally()
 
