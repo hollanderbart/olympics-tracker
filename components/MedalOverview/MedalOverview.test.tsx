@@ -3,6 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { render } from '@/tests/setup/test-utils'
 import MedalOverview from './MedalOverview'
 import { CountryMedals } from '@/lib/types'
+import confetti from 'canvas-confetti'
+
+jest.mock('canvas-confetti', () => {
+  const mock = jest.fn()
+  ;(mock as any).shapeFromPath = jest.fn(() => ({ type: 'path-shape' }))
+  return mock
+})
 
 describe('MedalOverview Component', () => {
   const mockNedMedalsWithData: CountryMedals = {
@@ -162,5 +169,23 @@ describe('MedalOverview Component', () => {
 
     // Component calculates total as gold + silver + bronze
     expect(screen.getByText('10')).toBeInTheDocument()
+  })
+
+  it('should show confetti when gold medal is clicked', async () => {
+    const user = userEvent.setup()
+    const mockToggle = jest.fn()
+
+    render(
+      <MedalOverview
+        nedMedals={mockNedMedalsWithData}
+        onToggleTally={mockToggle}
+        showTally={false}
+      />
+    )
+
+    const goldButton = screen.getByRole('button', { name: /Vier gouden medaille/i })
+    await user.click(goldButton)
+
+    expect(confetti).toHaveBeenCalled()
   })
 })

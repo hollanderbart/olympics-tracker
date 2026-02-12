@@ -1,13 +1,33 @@
 "use client";
 
+import confetti from "canvas-confetti";
 import { CountryMedals } from "@/lib/types";
+
+let dutchStripeShape: any | null = null;
+
+function getDutchStripeShape(): any {
+  if (dutchStripeShape) return dutchStripeShape;
+  if (typeof confetti.shapeFromPath !== "function") return "square";
+
+  try {
+    // Custom slim rectangle shape to create clean flag-like stripes.
+    dutchStripeShape = confetti.shapeFromPath({
+      path: "M0 0 L18 0 L18 6 L0 6 Z",
+    });
+    return dutchStripeShape;
+  } catch {
+    return "square";
+  }
+}
 
 function MedalRing({
   type,
   count,
+  onCelebrate,
 }: {
   type: "gold" | "silver" | "bronze";
   count: number;
+  onCelebrate?: () => void;
 }) {
   const styles = {
     gold: {
@@ -28,19 +48,38 @@ function MedalRing({
   };
   const s = styles[type];
   const label = type === "gold" ? "Goud" : type === "silver" ? "Zilver" : "Brons";
+  const canCelebrate = type === "gold" && Boolean(onCelebrate);
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div
-        className="medal-ring w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-extrabold cursor-default"
-        style={{
-          background: s.bg,
-          boxShadow: s.shadow,
-          color: s.text,
-          fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif",
-        }}
+        className="medal-ring-wrapper"
+        onClick={canCelebrate ? onCelebrate : undefined}
+        onKeyDown={
+          canCelebrate
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onCelebrate?.();
+                }
+              }
+            : undefined
+        }
+        role={canCelebrate ? "button" : undefined}
+        tabIndex={canCelebrate ? 0 : undefined}
+        aria-label={canCelebrate ? "Vier gouden medaille" : undefined}
       >
-        {count}
+        <div
+          className="medal-ring w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-extrabold cursor-default"
+          style={{
+            background: s.bg,
+            boxShadow: s.shadow,
+            color: s.text,
+            fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif",
+          }}
+        >
+          {count}
+        </div>
       </div>
       <span className="text-xs font-semibold text-white/50 uppercase tracking-[1.5px]">
         {label}
@@ -60,6 +99,43 @@ export default function MedalOverview({
 }) {
   const total = nedMedals.medals.gold + nedMedals.medals.silver + nedMedals.medals.bronze;
 
+  function triggerConfetti() {
+    const shape = getDutchStripeShape();
+    const dutchColors = ["#FF2A3D", "#FFFFFF", "#3B7BFF"];
+    const burstCount = 10;
+
+    dutchColors.forEach((color, colorIndex) => {
+      for (let i = 0; i < burstCount; i += 1) {
+        confetti({
+          particleCount: 24,
+          spread: 120,
+          startVelocity: 60,
+          gravity: 0.86,
+          decay: 0.91,
+          ticks: 360,
+          scalar: 2.2,
+          zIndex: 2000,
+          colors: [color],
+          shapes: [shape],
+          origin: { x: 0.5, y: 0.95 },
+        });
+        confetti({
+          particleCount: 14,
+          spread: 140,
+          startVelocity: 42,
+          gravity: 0.82,
+          decay: 0.905,
+          ticks: 340,
+          scalar: 2.35,
+          zIndex: 2000,
+          colors: [color],
+          shapes: [shape],
+          origin: { x: 0.5, y: 0.95 },
+        });
+      }
+    });
+  }
+
   return (
     <section className="animate-slide-up-1 max-w-[720px] mx-auto mt-7 px-6">
       <div
@@ -74,7 +150,11 @@ export default function MedalOverview({
 
         <div className="flex items-center justify-between flex-wrap gap-5">
           <div className="flex gap-6">
-            <MedalRing type="gold" count={nedMedals.medals.gold} />
+            <MedalRing
+              type="gold"
+              count={nedMedals.medals.gold}
+              onCelebrate={triggerConfetti}
+            />
             <MedalRing type="silver" count={nedMedals.medals.silver} />
             <MedalRing type="bronze" count={nedMedals.medals.bronze} />
           </div>

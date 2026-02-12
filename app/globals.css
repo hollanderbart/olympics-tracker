@@ -148,6 +148,13 @@ body {
 .medal-ring:hover {
   transform: scale(1.1);
 }
+.medal-ring-wrapper[role="button"] {
+  cursor: pointer;
+}
+.medal-ring-wrapper[role="button"]:focus-visible .medal-ring {
+  outline: 2px solid rgba(255, 215, 0, 0.9);
+  outline-offset: 3px;
+}
 
 /* Filter buttons */
 .filter-btn {
