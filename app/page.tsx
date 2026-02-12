@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import MedalOverview from "@/components/MedalOverview";
@@ -19,6 +19,13 @@ import {
   loadClientCache,
   saveClientCache,
 } from "@/lib/cache/clientCache";
+import {
+  getNotificationsEnabled,
+  requestNotificationPermission,
+  sendNotification,
+  setNotificationsEnabled,
+  supportsNotifications,
+} from "@/lib/notifications/browserNotifications";
 
 // Empty fallback for Netherlands when no data available
 const FALLBACK_NED: CountryMedals = {
@@ -173,6 +180,10 @@ async function fetchEventsWithCache(): Promise<EventsData> {
 
 export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
+  const [notificationsSupported, setNotificationsSupported] = useState(false);
+  const previousMedalsRef = useRef<{ gold: number; silver: number; bronze: number } | null>(null);
+  const previousStatusesRef = useRef<Record<string, DutchEvent["status"]>>({});
 
   // Fetch medal data with TanStack Query
   const medalsQuery = useQuery({
@@ -217,6 +228,97 @@ export default function HomePage() {
     [events]
   );
 
+  useEffect(() => {
+    setNotificationsSupported(supportsNotifications());
+    setNotificationsEnabledState(getNotificationsEnabled());
+  }, []);
+
+  useEffect(() => {
+    const current = {
+      gold: nedMedals.medals.gold,
+      silver: nedMedals.medals.silver,
+      bronze: nedMedals.medals.bronze,
+    };
+
+    if (!notificationsEnabled) {
+      previousMedalsRef.current = current;
+      return;
+    }
+
+    const previous = previousMedalsRef.current;
+    if (!previous) {
+      previousMedalsRef.current = current;
+      return;
+    }
+
+    const medalChanges: Array<{ type: "goud" | "zilver" | "brons"; from: number; to: number }> = [];
+    if (current.gold > previous.gold) medalChanges.push({ type: "goud", from: previous.gold, to: current.gold });
+    if (current.silver > previous.silver) medalChanges.push({ type: "zilver", from: previous.silver, to: current.silver });
+    if (current.bronze > previous.bronze) medalChanges.push({ type: "brons", from: previous.bronze, to: current.bronze });
+
+    medalChanges.forEach((change) => {
+      const dedupeKey = `notif_medal_${change.type}_${change.to}`;
+      sendNotification(
+        "Team NL medaille-update",
+        {
+          body: `Nederland heeft een extra ${change.type} medaille (${change.from} -> ${change.to}).`,
+        },
+        dedupeKey
+      );
+    });
+
+    previousMedalsRef.current = current;
+  }, [notificationsEnabled, nedMedals.medals.bronze, nedMedals.medals.gold, nedMedals.medals.silver]);
+
+  useEffect(() => {
+    const currentStatuses = events.reduce<Record<string, DutchEvent["status"]>>((acc, event) => {
+      acc[event.id] = event.status;
+      return acc;
+    }, {});
+
+    if (!notificationsEnabled) {
+      previousStatusesRef.current = currentStatuses;
+      return;
+    }
+
+    const previousStatuses = previousStatusesRef.current;
+    if (Object.keys(previousStatuses).length === 0) {
+      previousStatusesRef.current = currentStatuses;
+      return;
+    }
+
+    events.forEach((event) => {
+      const previousStatus = previousStatuses[event.id];
+      if (previousStatus && previousStatus !== "live" && event.status === "live") {
+        const dedupeKey = `notif_event_live_${event.id}_${event.date}`;
+        sendNotification(
+          "Team NL nu live",
+          {
+            body: `${event.event} is live begonnen.`,
+          },
+          dedupeKey
+        );
+      }
+    });
+
+    previousStatusesRef.current = currentStatuses;
+  }, [events, notificationsEnabled]);
+
+  const handleNotificationsToggle = async () => {
+    if (!notificationsSupported) return;
+
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      setNotificationsEnabledState(false);
+      return;
+    }
+
+    const permission = await requestNotificationPermission();
+    const allowed = permission === "granted";
+    setNotificationsEnabled(allowed);
+    setNotificationsEnabledState(allowed);
+  };
+
   return (
     <div className="relative overflow-hidden min-h-screen">
       {/* Background decoration */}
@@ -253,6 +355,38 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      <section className="max-w-[720px] mx-auto mt-4 px-6">
+        <div
+          className="rounded-xl p-3 flex items-center justify-between gap-3"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <div className="text-xs text-white/65">
+            Meldingen voor Team NL medailles en live-wedstrijden
+          </div>
+          <button
+            type="button"
+            onClick={handleNotificationsToggle}
+            disabled={!notificationsSupported}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              notificationsSupported
+                ? notificationsEnabled
+                  ? "bg-oranje text-white"
+                  : "bg-white/10 text-white/75 hover:bg-white/15"
+                : "bg-white/5 text-white/30 cursor-not-allowed"
+            }`}
+          >
+            {!notificationsSupported
+              ? "Niet ondersteund"
+              : notificationsEnabled
+                ? "Meldingen aan"
+                : "Meldingen uit"}
+          </button>
+        </div>
+      </section>
 
       {gamesNotStarted && (
         <section className="max-w-[720px] mx-auto mt-6 px-6">
