@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DutchEvent } from "@/lib/types";
 import { formatDate, getCountdown, isToday } from "./utils";
+
+const FAVORITES_STORAGE_KEY = "favorite_event_ids_v1";
 
 function StatusBadge({ status }: { status: DutchEvent["status"] }) {
   if (status === "live") {
@@ -26,9 +28,13 @@ function StatusBadge({ status }: { status: DutchEvent["status"] }) {
 function EventRow({
   event,
   isNext,
+  isFavorite,
+  onToggleFavorite,
 }: {
   event: DutchEvent;
   isNext: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: (eventId: string) => void;
 }) {
   const [countdown, setCountdown] = useState<string | null>(null);
 
@@ -88,6 +94,19 @@ function EventRow({
           </div>
         </div>
         <div className="flex items-center gap-4 shrink-0">
+          <button
+            type="button"
+            onClick={() => onToggleFavorite(event.id)}
+            aria-label={
+              isFavorite ? "Verwijder uit favorieten" : "Toevoegen aan favorieten"
+            }
+            className={`text-base transition-colors ${
+              isFavorite ? "text-[#ffd44d]" : "text-white/35 hover:text-white/70"
+            }`}
+            title={isFavorite ? "Favoriet" : "Markeer als favoriet"}
+          >
+            {isFavorite ? "★" : "☆"}
+          </button>
           <span className="text-[13px] text-white/50 font-semibold tabular-nums">
             {event.time} CET
           </span>
@@ -137,16 +156,55 @@ export default function EventList({
   events: DutchEvent[];
   nextEventId: string | null;
 }) {
-  const [filter, setFilter] = useState("upcoming");
+  const [selectedSport, setSelectedSport] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "live" | "upcoming" | "completed"
+  >("upcoming");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
-  const sports = [...new Set(events.map((e) => e.sport))];
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setFavoriteIds(new Set(parsed.filter((id) => typeof id === "string")));
+      }
+    } catch {
+      // Ignore malformed local storage payload.
+    }
+  }, []);
 
-  const filtered = events.filter((e) => {
-    if (filter === "all") return true;
-    if (filter === "upcoming") return e.status === "upcoming" || e.status === "live";
-    if (filter === "completed") return e.status === "completed";
-    return e.sport === filter;
-  });
+  useEffect(() => {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favoriteIds)));
+  }, [favoriteIds]);
+
+  const sports = useMemo(() => [...new Set(events.map((e) => e.sport))], [events]);
+
+  const toggleFavorite = (eventId: string) => {
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+  };
+
+  const filtered = useMemo(
+    () =>
+      events.filter((e) => {
+        if (statusFilter === "live" && e.status !== "live") return false;
+        if (statusFilter === "upcoming" && e.status !== "upcoming" && e.status !== "live") {
+          return false;
+        }
+        if (statusFilter === "completed" && e.status !== "completed") return false;
+        if (selectedSport !== "all" && e.sport !== selectedSport) return false;
+        if (favoritesOnly && !favoriteIds.has(e.id)) return false;
+        return true;
+      }),
+    [events, statusFilter, selectedSport, favoritesOnly, favoriteIds]
+  );
 
   // Group by date
   const grouped: Record<string, DutchEvent[]> = {};
@@ -162,21 +220,25 @@ export default function EventList({
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-base font-bold text-white/90">Programma</h2>
           <div className="flex gap-1.5 flex-wrap">
-            {["all", "upcoming", "completed", ...sports].map((f) => {
+            {["all", "upcoming", "live", "completed"].map((f) => {
               const label =
                 f === "all"
-                  ? "Alles"
+                  ? "Alle statussen"
                   : f === "upcoming"
                   ? "Komend"
+                  : f === "live"
+                  ? "Live"
                   : f === "completed"
                   ? "Afgelopen"
                   : f;
               return (
                 <button
                   key={f}
-                  onClick={() => setFilter(f)}
+                  onClick={() =>
+                    setStatusFilter(f as "all" | "live" | "upcoming" | "completed")
+                  }
                   className={`filter-btn px-3 py-1.5 rounded-lg border-none text-xs font-semibold cursor-pointer ${
-                    filter === f ? "active" : "bg-white/[0.04] text-white/45"
+                    statusFilter === f ? "active" : "bg-white/[0.04] text-white/45"
                   }`}
                 >
                   {label}
@@ -184,6 +246,28 @@ export default function EventList({
               );
             })}
           </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          {["all", ...sports].map((sport) => (
+            <button
+              key={sport}
+              onClick={() => setSelectedSport(sport)}
+              className={`filter-btn px-3 py-1.5 rounded-lg border-none text-xs font-semibold cursor-pointer ${
+                selectedSport === sport ? "active" : "bg-white/[0.04] text-white/45"
+              }`}
+            >
+              {sport === "all" ? "Alle sporten" : sport}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFavoritesOnly((prev) => !prev)}
+            className={`filter-btn px-3 py-1.5 rounded-lg border-none text-xs font-semibold cursor-pointer ${
+              favoritesOnly ? "active" : "bg-white/[0.04] text-white/45"
+            }`}
+          >
+            {favoritesOnly ? "★ Alleen favorieten" : "☆ Alleen favorieten"}
+          </button>
         </div>
       </section>
 
@@ -218,6 +302,8 @@ export default function EventList({
                     key={event.id}
                     event={event}
                     isNext={event.id === nextEventId && event.status !== "live"}
+                    isFavorite={favoriteIds.has(event.id)}
+                    onToggleFavorite={toggleFavorite}
                   />
                 ))}
               </div>
