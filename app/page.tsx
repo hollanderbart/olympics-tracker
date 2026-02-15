@@ -301,6 +301,7 @@ async function fetchEventsWithCache(selectedCountryNoc: string): Promise<EventsD
 
 export default function HomePage() {
   const [showTally, setShowTally] = useState(false);
+  const [showWinnersList, setShowWinnersList] = useState(false);
   const [selectedCountryNoc, setSelectedCountryNoc] = useState(
     DEFAULT_FAVORITE_COUNTRY_NOC
   );
@@ -341,6 +342,11 @@ export default function HomePage() {
   const selectedCountryName = selectedCountryMedals.name;
   const selectedCountryFlag =
     selectedCountryMedals.flag || NOC_FLAGS[selectedCountryNoc] || "🏳️";
+  const medalWinners = medalData?.medalWinners || [];
+  const winnersForSelectedCountry = useMemo(
+    () => medalWinners.filter((winner) => winner.noc === selectedCountryNoc),
+    [medalWinners, selectedCountryNoc]
+  );
   const events = eventsData?.events || [];
   const isMedalsLoading = medalsQuery.isPending && !medalData;
   const isEventsLoading = eventsQuery.isPending && !eventsData;
@@ -685,7 +691,13 @@ export default function HomePage() {
         />
       )}
       {showTally && medals.length > 0 && (
-        <MedalTally medals={medals} highlightedNoc={selectedCountryNoc} />
+        <MedalTally
+          medals={medals}
+          highlightedNoc={selectedCountryNoc}
+          winners={winnersForSelectedCountry}
+          showWinnersList={showWinnersList}
+          onToggleWinnersList={() => setShowWinnersList((v) => !v)}
+        />
       )}
       {isEventsLoading ? (
         <>

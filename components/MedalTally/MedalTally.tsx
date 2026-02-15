@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { List, type RowComponentProps } from "react-window";
-import { CountryMedals } from "@/lib/types";
+import { CountryMedals, MedalWinner } from "@/lib/types";
 
 const VIRTUALIZATION_THRESHOLD = 30;
 const TALLY_ROW_HEIGHT = 42;
@@ -55,9 +55,15 @@ function TallyRow({
 export default function MedalTally({
   medals,
   highlightedNoc = "NED",
+  winners = [],
+  showWinnersList = false,
+  onToggleWinnersList,
 }: {
   medals: CountryMedals[];
   highlightedNoc?: string;
+  winners?: MedalWinner[];
+  showWinnersList?: boolean;
+  onToggleWinnersList?: () => void;
 }) {
   // Sort: gold desc, then silver, then bronze
   const sorted = useMemo(
@@ -72,7 +78,9 @@ export default function MedalTally({
         ),
     [medals, highlightedNoc]
   );
-  const shouldVirtualize = sorted.length > VIRTUALIZATION_THRESHOLD;
+  const hasEmbeddedWinnersControls = Boolean(onToggleWinnersList);
+  const shouldVirtualize =
+    sorted.length > VIRTUALIZATION_THRESHOLD && !hasEmbeddedWinnersControls;
 
   const VirtualRow = ({ index, style, items }: RowComponentProps<VirtualRowProps>) => {
     const entry = items[index];
@@ -116,12 +124,57 @@ export default function MedalTally({
           </List>
         ) : (
           sorted.map((entry, i) => (
-            <TallyRow
-              key={entry.noc}
-              entry={entry}
-              rank={i + 1}
-              isNED={entry.noc === highlightedNoc}
-            />
+            <div key={entry.noc}>
+              <TallyRow
+                entry={entry}
+                rank={i + 1}
+                isNED={entry.noc === highlightedNoc}
+              />
+              {entry.noc === highlightedNoc && hasEmbeddedWinnersControls && (
+                <div className="px-3 py-3 border-b border-white/[0.04] bg-white/[0.02]">
+                  <button
+                    type="button"
+                    onClick={onToggleWinnersList}
+                    className="text-xs text-white/60 font-medium underline decoration-white/20 underline-offset-[3px] hover:text-oranje transition-colors"
+                  >
+                    {showWinnersList ? "Verberg winnaarslijst ↑" : "Bekijk winnaarslijst ↓"}
+                  </button>
+
+                  {showWinnersList && (
+                    <div className="mt-3">
+                      {winners.length === 0 ? (
+                        <div className="text-xs text-white/45">
+                          Geen medaillewinnaars beschikbaar voor deze selectie.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-white/5 border border-white/[0.06] rounded-lg overflow-hidden">
+                          {winners.map((winner) => (
+                            <div key={winner.id} className="p-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm text-white font-semibold truncate flex items-center gap-1.5">
+                                    <span aria-hidden="true">
+                                      {(winner.medalType === "gold" && "🥇") ||
+                                        (winner.medalType === "silver" && "🥈") ||
+                                        "🥉"}
+                                    </span>
+                                    <span>{winner.competitorDisplayName}</span>
+                                  </div>
+                                  <div className="text-xs text-white/60 mt-0.5">
+                                    {winner.eventDescription}
+                                    {winner.date ? ` · ${winner.date}` : ""}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           ))
         )}
         {sorted.length === 0 && (

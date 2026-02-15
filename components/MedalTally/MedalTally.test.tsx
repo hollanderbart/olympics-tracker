@@ -1,7 +1,8 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { render } from '@/tests/setup/test-utils'
 import MedalTally from './MedalTally'
-import { CountryMedals } from '@/lib/types'
+import { CountryMedals, MedalWinner } from '@/lib/types'
 
 describe('MedalTally Component', () => {
   const mockMedals: CountryMedals[] = [
@@ -185,5 +186,39 @@ describe('MedalTally Component', () => {
     // USA should be first (same gold, but more silver)
     expect(rows[0]).toHaveTextContent('United States')
     expect(rows[1]).toHaveTextContent('Norway')
+  })
+
+  it('should show winners toggle under highlighted country row', async () => {
+    const user = userEvent.setup()
+    const winners: MedalWinner[] = [
+      {
+        id: 'ned-1',
+        noc: 'NED',
+        countryName: 'Netherlands',
+        disciplineCode: 'SSK',
+        disciplineName: 'Speed Skating',
+        eventCode: 'SSKM1000M',
+        eventDescription: 'Mannen 1000m',
+        medalType: 'gold',
+        competitorDisplayName: 'Voorbeeld Atleet',
+        competitorType: 'A',
+        date: '2026-02-11',
+      },
+    ]
+
+    render(
+      <MedalTally
+        medals={mockMedals}
+        highlightedNoc="NED"
+        winners={winners}
+        showWinnersList={false}
+        onToggleWinnersList={() => {}}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: /Bekijk winnaarslijst/i })
+    expect(button).toBeInTheDocument()
+
+    await user.click(button)
   })
 })

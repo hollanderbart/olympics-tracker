@@ -26,6 +26,23 @@ export interface MedalChance {
   score: number;
 }
 
+export type MedalType = "gold" | "silver" | "bronze";
+
+export interface MedalWinner {
+  id: string;
+  noc: string;
+  countryName: string;
+  disciplineCode: string;
+  disciplineName: string;
+  eventCode: string;
+  eventDescription: string;
+  eventCategory?: string;
+  medalType: MedalType;
+  competitorDisplayName: string;
+  competitorType: string;
+  date: string;
+}
+
 // Event/schedule types
 export interface DutchEvent {
   id: string;

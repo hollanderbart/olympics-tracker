@@ -77,6 +77,27 @@ describe('HomePage Integration Tests', () => {
     })
   })
 
+  it('should only show winners list after clicking the button', async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('3')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole('button', { name: /Bekijk winnaarslijst/i })).not.toBeInTheDocument()
+
+    const tallyButton = screen.getByRole('button', { name: /medaillespiegel/i })
+    await user.click(tallyButton)
+
+    const winnersButton = screen.getByRole('button', { name: /Bekijk winnaarslijst/i })
+    await user.click(winnersButton)
+
+    expect(
+      await screen.findByText(/Geen medaillewinnaars beschikbaar voor deze selectie/i)
+    ).toBeInTheDocument()
+  })
+
   it('should display Dutch events from constants', async () => {
     render(<HomePage />)
 

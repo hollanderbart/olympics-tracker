@@ -3,7 +3,7 @@ import {
   OLYMPICS_MEDALS_PAGE,
   NED_NOC,
 } from "../constants";
-import { CountryMedals, DutchEvent, NOC_FLAGS } from "../types";
+import { CountryMedals, DutchEvent, MedalType, MedalWinner, NOC_FLAGS } from "../types";
 import { logTelemetry } from "../telemetry/logger";
 import { getStaticScheduleByNoc } from "../schedules";
 
@@ -115,6 +115,7 @@ async function fetchTextWithFallback(url: string): Promise<string | null> {
 export async function fetchMedalTally(): Promise<{
   medals: CountryMedals[];
   nedMedals: CountryMedals | null;
+  medalWinners: MedalWinner[];
   lastUpdated: string;
   error?: string;
 }> {
@@ -136,6 +137,7 @@ export async function fetchMedalTally(): Promise<{
     const parsed = parseMedalsHTML(html);
     if (parsed.length > 0) {
       const nedMedals = findNetherlands(parsed);
+      const medalWinners = extractMedalWinnersFromHtml(html, parsed);
       logTelemetry({
         event: "medals_fetch_success",
         level: "info",
@@ -146,7 +148,7 @@ export async function fetchMedalTally(): Promise<{
           elapsedMs: elapsedMs(),
         },
       });
-      return { medals: parsed, nedMedals, lastUpdated: now };
+      return { medals: parsed, nedMedals, medalWinners, lastUpdated: now };
     }
     logTelemetry({
       event: "medals_parse_failure",
@@ -176,6 +178,7 @@ export async function fetchMedalTally(): Promise<{
     const parsed = parseOlympicsJSON(jsonData);
     if (parsed.length > 0) {
       const nedMedals = findNetherlands(parsed);
+      const medalWinners = extractMedalWinners(jsonData, parsed);
       logTelemetry({
         event: "medals_fetch_success",
         level: "info",
@@ -186,7 +189,7 @@ export async function fetchMedalTally(): Promise<{
           elapsedMs: elapsedMs(),
         },
       });
-      return { medals: parsed, nedMedals, lastUpdated: now };
+      return { medals: parsed, nedMedals, medalWinners, lastUpdated: now };
     }
     logTelemetry({
       event: "medals_parse_failure",
@@ -225,7 +228,7 @@ export async function fetchMedalTally(): Promise<{
           elapsedMs: elapsedMs(),
         },
       });
-      return { medals: parsed, nedMedals, lastUpdated: now };
+      return { medals: parsed, nedMedals, medalWinners: [], lastUpdated: now };
     }
     logTelemetry({
       event: "medals_parse_failure",
@@ -249,6 +252,7 @@ export async function fetchMedalTally(): Promise<{
   return {
     medals: [],
     nedMedals: createEmptyCountry(NED_NOC),
+    medalWinners: [],
     lastUpdated: now,
     error: "Could not fetch medal data. Will retry shortly.",
   };
@@ -291,6 +295,96 @@ function parseOlympicsJSON(data: any): CountryMedals[] {
   } catch {
     return [];
   }
+}
+
+function extractMedalWinners(data: any, medals: CountryMedals[]): MedalWinner[] {
+  const entries = Array.isArray(data?.medalStandings?.medalsTable)
+    ? data.medalStandings.medalsTable
+    : [];
+  if (entries.length === 0) return [];
+
+  const countryNameByNoc = new Map(
+    medals.map((country) => [country.noc.toUpperCase(), country.name])
+  );
+  const seen = new Set<string>();
+  const winners: MedalWinner[] = [];
+
+  entries.forEach((entry: any) => {
+    const noc = String(entry?.organisation || entry?.n_NOC || "").toUpperCase();
+    if (!noc) return;
+
+    const countryName =
+      String(entry?.longDescription || entry?.description || "").trim() ||
+      countryNameByNoc.get(noc) ||
+      noc;
+    const disciplines = Array.isArray(entry?.disciplines) ? entry.disciplines : [];
+
+    disciplines.forEach((discipline: any) => {
+      const disciplineCode = String(discipline?.code || "");
+      const disciplineName = String(discipline?.name || disciplineCode || "Onbekend");
+      const medalWinners = Array.isArray(discipline?.medalWinners)
+        ? discipline.medalWinners
+        : [];
+
+      medalWinners.forEach((medalWinner: any, index: number) => {
+        const medalType = normalizeMedalType(medalWinner?.medalType);
+        if (!medalType) return;
+
+        const eventCode = String(medalWinner?.eventCode || "");
+        const competitorCode = String(
+          medalWinner?.competitorCode || medalWinner?.competitorDisplayName || ""
+        );
+        const id = `${noc}:${eventCode}:${medalType}:${competitorCode}:${index}`;
+        if (seen.has(id)) return;
+        seen.add(id);
+
+        winners.push({
+          id,
+          noc,
+          countryName,
+          disciplineCode,
+          disciplineName,
+          eventCode,
+          eventDescription: String(medalWinner?.eventDescription || "Onbekend evenement"),
+          eventCategory: String(medalWinner?.eventCategory || "").trim() || undefined,
+          medalType,
+          competitorDisplayName: String(
+            medalWinner?.competitorDisplayName || countryName
+          ).trim(),
+          competitorType: String(medalWinner?.competitorType || ""),
+          date: String(medalWinner?.date || ""),
+        });
+      });
+    });
+  });
+
+  return winners.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function extractMedalWinnersFromHtml(html: string, medals: CountryMedals[]): MedalWinner[] {
+  try {
+    const variants = [html, normalizeSerializedHtml(html)];
+    for (const variant of variants) {
+      const payloads = extractScriptJsonPayloads(variant);
+      for (const payload of payloads) {
+        const table = findMedalsTable(payload);
+        if (!table || table.length === 0) continue;
+        const winners = extractMedalWinners({ medalStandings: { medalsTable: table } }, medals);
+        if (winners.length > 0) return winners;
+      }
+    }
+  } catch {
+    // Ignore HTML winners parsing failures.
+  }
+  return [];
+}
+
+function normalizeMedalType(rawType: unknown): MedalType | null {
+  const value = String(rawType || "").toUpperCase();
+  if (value.includes("GOLD")) return "gold";
+  if (value.includes("SILVER")) return "silver";
+  if (value.includes("BRONZE")) return "bronze";
+  return null;
 }
 
 function extractMedalTotals(entry: any): CountryMedals["medals"] {
